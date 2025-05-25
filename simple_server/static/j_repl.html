@@ -100,16 +100,11 @@
         }
         .calculator {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 5px;
-            margin-bottom: 15px;
-        }
-        .verb-pad {
-            display: grid;
             grid-template-columns: repeat(5, 1fr);
             gap: 5px;
             margin-bottom: 15px;
         }
+        /* Removed verb-pad as we now have a single calculator grid */
         .btn {
             padding: 8px;
             background-color: #e9e9e9;
@@ -166,43 +161,41 @@
             <form action="/j_eval" method="post" id="j-form">
                 <input type="text" id="expression-input" name="expression" placeholder="Use buttons below to enter expressions" readonly>
                 
-                <!-- Verb pad for J operations -->
-                <div class="verb-pad">
-                    <button type="button" class="btn btn-verb" data-value="+">+</button>
-                    <button type="button" class="btn btn-verb" data-value="{">{ (from)</button>
-                    <button type="button" class="btn btn-verb" data-value="~">~ (iota)</button>
-                    <button type="button" class="btn btn-verb" data-value="<">< (box)</button>
-                    <button type="button" class="btn btn-verb" data-value="#"># (shape)</button>
-                    <button type="button" class="btn btn-verb" data-value=",">, (cat)</button>
-                    <button type="button" class="btn btn-control" data-value="help">help</button>
-                    <button type="button" class="btn btn-clear" id="clear-btn">Clear</button>
-                    <button type="button" class="btn btn-control" data-value=" ">Space</button>
-                </div>
-                
-                <!-- Calculator pad for numbers -->
+                <!-- Calculator grid - 19 buttons in 4 rows -->
                 <div class="calculator">
+                    <!-- Row 1: ~#789 -->
+                    <button type="button" class="btn btn-verb" data-value="~">~</button>
+                    <button type="button" class="btn btn-verb" data-value="#">#</button>
                     <button type="button" class="btn btn-number" data-value="7">7</button>
                     <button type="button" class="btn btn-number" data-value="8">8</button>
                     <button type="button" class="btn btn-number" data-value="9">9</button>
-                    <button type="button" class="btn btn-control" data-value="←">←</button>
                     
+                    <!-- Row 2: {,456 -->
+                    <button type="button" class="btn btn-verb" data-value="{">{</button>
+                    <button type="button" class="btn btn-verb" data-value=",">,</button>
                     <button type="button" class="btn btn-number" data-value="4">4</button>
                     <button type="button" class="btn btn-number" data-value="5">5</button>
                     <button type="button" class="btn btn-number" data-value="6">6</button>
-                    <button type="button" class="btn btn-space" data-value=" ">Space</button>
                     
+                    <!-- Row 3: <+123 -->
+                    <button type="button" class="btn btn-verb" data-value="<"><</button>
+                    <button type="button" class="btn btn-verb" data-value="+">+</button>
                     <button type="button" class="btn btn-number" data-value="1">1</button>
                     <button type="button" class="btn btn-number" data-value="2">2</button>
                     <button type="button" class="btn btn-number" data-value="3">3</button>
-                    <button type="button" class="btn btn-eval" id="eval-btn">Evaluate</button>
                     
+                    <!-- Row 4: ←␣0 = -->
+                    <button type="button" class="btn btn-control" data-value="←" id="backspace-btn">←</button>
+                    <button type="button" class="btn btn-control" data-value=" ">␣</button>
                     <button type="button" class="btn btn-number" data-value="0">0</button>
+                    <button type="button" class="btn" style="visibility: hidden;"></button> <!-- Empty space -->
+                    <button type="button" class="btn btn-eval" id="eval-btn">=</button>
                 </div>
             </form>
             
             <div class="help-text">
-                Use the buttons above to enter J expressions.
-                Try <code>~5</code> to generate integers from 0 to 4, <code>2 + 3</code> for addition, or <code>help</code> for more commands.
+                Use the calculator to enter J expressions.
+                Examples: <code>~5</code> (iota), <code>2 + 3</code> (addition), <code>2 3 # 1 2 3 4 5 6</code> (reshape)
             </div>
         </div>
     </div>
@@ -225,7 +218,6 @@
             const form = document.getElementById('j-form');
             const buttons = document.querySelectorAll('.btn');
             const evalBtn = document.getElementById('eval-btn');
-            const clearBtn = document.getElementById('clear-btn');
             
             // Add click handlers to all buttons
             buttons.forEach(button => {
@@ -235,23 +227,16 @@
                     if (value === '←') {
                         // Backspace - remove the last character
                         input.value = input.value.slice(0, -1);
-                    } else {
+                    } else if (this.id === 'eval-btn') {
+                        // Evaluate button - submit the expression
+                        if (input.value.trim()) {
+                            submitExpression(input.value);
+                        }
+                    } else if (value) {
                         // Add the button value to the input
                         input.value += value;
                     }
                 });
-            });
-            
-            // Clear button handler
-            clearBtn.addEventListener('click', function() {
-                input.value = '';
-            });
-            
-            // Evaluate button handler
-            evalBtn.addEventListener('click', function() {
-                if (input.value.trim()) {
-                    submitExpression(input.value);
-                }
             });
             
             // Form submission handler
