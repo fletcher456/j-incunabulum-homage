@@ -53,33 +53,28 @@ fn main() {
                         // URL decode the J expression
                         let expression = url_decode(expression);
                         
-                        // Add the input to message history
-                        let mut messages = state.messages.lock().unwrap();
-                        messages.push_front(format!("<div class=\"message input\">> {}</div>", html_escape(&expression)));
-                        
                         // Evaluate the J expression
                         let result = state.j_interpreter.execute(&expression);
                         let formatted_result = format_result(result);
                         
-                        // Check if it's an error
-                        let result_class = if formatted_result.starts_with("Error") {
-                            "error"
-                        } else {
-                            "output"
-                        };
+                        // Return JSON response
+                        let json_response = format!(
+                            "{{\"result\": \"{}\"}}",
+                            formatted_result.replace('"', "\\\"").replace('\n', "\\n")
+                        );
                         
-                        // Add the result to message history
-                        messages.push_front(format!("<div class=\"message {}\">  {}</div>", result_class, html_escape(&formatted_result)));
-                        
-                        // Keep only the last 20 messages (10 input/output pairs)
-                        while messages.len() > 20 {
-                            messages.pop_back();
-                        }
+                        let header = Header::from_bytes("Content-Type", "application/json").unwrap();
+                        Response::from_string(json_response).with_header(header)
+                    } else {
+                        let error_response = "{\"result\": \"Error: Invalid request format\"}";
+                        let header = Header::from_bytes("Content-Type", "application/json").unwrap();
+                        Response::from_string(error_response).with_header(header).with_status_code(400)
                     }
+                } else {
+                    let error_response = "{\"result\": \"Error: Could not read request body\"}";
+                    let header = Header::from_bytes("Content-Type", "application/json").unwrap();
+                    Response::from_string(error_response).with_header(header).with_status_code(400)
                 }
-                
-                // Serve the J REPL page with updated content
-                serve_j_repl_with_messages(&state)
             },
             // Original message submission (kept for backward compatibility)
             (Method::Post, "/submit") => {

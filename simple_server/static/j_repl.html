@@ -246,6 +246,12 @@
         }
         
         function submitExpression(expression) {
+            // Add input message immediately
+            addMessage('> ' + expression, 'input');
+            
+            // Clear the input field
+            document.getElementById('expression-input').value = '';
+            
             fetch('/j_eval', {
                 method: 'POST',
                 headers: {
@@ -253,19 +259,29 @@
                 },
                 body: 'expression=' + encodeURIComponent(expression)
             })
-            .then(response => response.text())
-            .then(html => {
-                // Replace the entire page with the new content
-                document.documentElement.innerHTML = html;
-                // Set up the calculator again after page refresh
-                setTimeout(function() {
-                    scrollToBottom();
-                    setupCalculator();
-                }, 100);
+            .then(response => response.json())
+            .then(data => {
+                // Add the result message
+                const resultClass = data.result.startsWith('Error') ? 'error' : 'output';
+                addMessage('  ' + data.result, resultClass);
+                scrollToBottom();
             })
             .catch(error => {
                 console.error('Error:', error);
+                addMessage('  Error: Communication failed', 'error');
+                scrollToBottom();
             });
+        }
+        
+        function addMessage(text, className) {
+            const messagesDiv = document.getElementById('messages');
+            const messageContainer = messagesDiv.querySelector('.message-container') || messagesDiv;
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ' + className;
+            messageDiv.textContent = text;
+            
+            messageContainer.appendChild(messageDiv);
         }
     </script>
 </body>
