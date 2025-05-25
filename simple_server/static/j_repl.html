@@ -115,7 +115,15 @@
             </div>
             
             <form action="/j_eval" method="post">
-                <input type="text" name="expression" placeholder="Enter J expression (try '~5' or 'help')" required>
+                <!-- Combine existing standards for closest experience -->
+                <input type="text"
+                       inputmode="decimal"
+                       pattern="[0-9+\-*/().]*"
+                       x-inputmode="calculator"
+                       data-calculator="true"
+                       class="calc-input"
+                    name="expression"
+                    placeholder="Enter J expression (try '~5' or 'help')" required>
                 <button type="submit">Evaluate</button>
             </form>
             
