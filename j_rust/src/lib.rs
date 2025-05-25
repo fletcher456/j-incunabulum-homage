@@ -1,6 +1,8 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+use std::io::Write;
 use libc::{malloc, strlen};
+use std::ptr;
 
 // Direct translations of C types
 pub type C = i8;  // char in C
@@ -18,44 +20,35 @@ pub struct a {
 // Type A is a pointer to struct a
 pub type A = *mut a;
 
-// Macros translated to functions or inline code
+// Memory allocation - direct translation of ma(n)
+#[no_mangle]
+pub unsafe extern "C" fn ma(n: I) -> *mut I {
+    (malloc((n * 4) as usize) as *mut I)
+}
 
-// Helper function for DO macro: executes the closure n times with index i
-#[inline]
-unsafe fn do_loop<F>(n: I, mut func: F) where F: FnMut(I) {
-    let mut i: I = 0;
-    let _n = n;
-    while i < _n {
-        func(i);
+// Memory copy - direct translation of mv(d,s,n)
+#[no_mangle]
+pub unsafe extern "C" fn mv(d: *mut I, s: *mut I, n: I) {
+    let mut i = 0;
+    while i < n {
+        *d.offset(i as isize) = *s.offset(i as isize);
         i += 1;
     }
 }
 
-// Memory allocation - equivalent to ma(n) in the fragment
-#[no_mangle]
-pub unsafe extern "C" fn ma(n: I) -> *mut I {
-    malloc((n * 4) as usize) as *mut I
-}
-
-// Memory copy - equivalent to mv(d,s,n) in the fragment
-#[no_mangle]
-pub unsafe extern "C" fn mv(d: *mut I, s: *mut I, n: I) {
-    do_loop(n, |i| {
-        *d.offset(i as isize) = *s.offset(i as isize);
-    });
-}
-
-// Calculate total size - equivalent to tr(r,d) in the fragment
+// Calculate total size - direct translation of tr(r,d)
 #[no_mangle]
 pub unsafe extern "C" fn tr(r: I, d: *mut I) -> I {
     let mut z: I = 1;
-    do_loop(r, |i| {
+    let mut i = 0;
+    while i < r {
         z = z * *d.offset(i as isize);
-    });
+        i += 1;
+    }
     z
 }
 
-// Create array - equivalent to ga(t,r,d) in the fragment
+// Create array - direct translation of ga(t,r,d)
 #[no_mangle]
 pub unsafe extern "C" fn ga(t: I, r: I, d: *mut I) -> A {
     let z = ma(5 + tr(r, d)) as A;
@@ -65,33 +58,37 @@ pub unsafe extern "C" fn ga(t: I, r: I, d: *mut I) -> A {
     z
 }
 
-// Iota function - equivalent to iota(w) in the fragment
+// Iota function - direct translation of iota(w)
 #[no_mangle]
 pub unsafe extern "C" fn iota(w: A) -> A {
     let mut n = *(*w).p.as_ptr();
     let z = ga(0, 1, &mut n);
-    do_loop(n, |i| {
+    let mut i = 0;
+    while i < n {
         *(*z).p.as_mut_ptr().offset(i as isize) = i;
-    });
+        i += 1;
+    }
     z
 }
 
-// Plus function - equivalent to plus(a,w) in the fragment
+// Plus function - direct translation of plus(a,w)
 #[no_mangle]
 pub unsafe extern "C" fn plus(a_ptr: A, w: A) -> A {
     let r = (*w).r;
     let d = (*w).d.as_mut_ptr();
     let n = tr(r, d);
     let z = ga(0, r, d);
-    do_loop(n, |i| {
+    let mut i = 0;
+    while i < n {
         *(*z).p.as_mut_ptr().offset(i as isize) = 
             *(*a_ptr).p.as_mut_ptr().offset(i as isize) + 
             *(*w).p.as_mut_ptr().offset(i as isize);
-    });
+        i += 1;
+    }
     z
 }
 
-// From function - equivalent to from(a,w) in the fragment
+// From function - direct translation of from(a,w)
 #[no_mangle]
 pub unsafe extern "C" fn from(a_ptr: A, w: A) -> A {
     let r = (*w).r - 1;
@@ -106,15 +103,15 @@ pub unsafe extern "C" fn from(a_ptr: A, w: A) -> A {
     z
 }
 
-// Box function - equivalent to box(w) in the fragment
+// Box function - direct translation of box(w)
 #[no_mangle]
 pub unsafe extern "C" fn box_func(w: A) -> A {
-    let z = ga(1, 0, std::ptr::null_mut());
+    let z = ga(1, 0, ptr::null_mut());
     *(*z).p.as_mut_ptr() = w as I;
     z
 }
 
-// Cat function - equivalent to cat(a,w) in the fragment
+// Cat function - direct translation of cat(a,w)
 #[no_mangle]
 pub unsafe extern "C" fn cat(a_ptr: A, w: A) -> A {
     let an = tr((*a_ptr).r, (*a_ptr).d.as_mut_ptr());
@@ -126,13 +123,13 @@ pub unsafe extern "C" fn cat(a_ptr: A, w: A) -> A {
     z
 }
 
-// Find function - empty placeholder as in the fragment
+// Find function - empty implementation as in the fragment
 #[no_mangle]
 pub unsafe extern "C" fn find(_a: A, _w: A) -> A {
-    std::ptr::null_mut()
+    ptr::null_mut()
 }
 
-// Reshape function - equivalent to rsh(a,w) in the fragment
+// Reshape function - direct translation of rsh(a,w)
 #[no_mangle]
 pub unsafe extern "C" fn rsh(a_ptr: A, w: A) -> A {
     let r = if (*a_ptr).r > 0 { *(*a_ptr).d.as_ptr() } else { 1 };
@@ -141,7 +138,7 @@ pub unsafe extern "C" fn rsh(a_ptr: A, w: A) -> A {
     let z = ga((*w).t, r, (*a_ptr).p.as_mut_ptr());
     let wn_adjusted = if n > wn { wn } else { n };
     mv((*z).p.as_mut_ptr(), (*w).p.as_mut_ptr(), wn_adjusted);
-    let remaining = n - wn_adjusted;
+    let mut remaining = n - wn_adjusted;
     if remaining > 0 {
         mv(
             (*z).p.as_mut_ptr().offset(wn_adjusted as isize),
@@ -152,177 +149,100 @@ pub unsafe extern "C" fn rsh(a_ptr: A, w: A) -> A {
     z
 }
 
-// Shape function - equivalent to sha(w) in the fragment
+// Shape function - direct translation of sha(w)
 #[no_mangle]
 pub unsafe extern "C" fn sha(w: A) -> A {
-    let z = ga(0, 1, &mut (*w).r);
+    let mut w_r = (*w).r;
+    let z = ga(0, 1, &mut w_r);
     mv((*z).p.as_mut_ptr(), (*w).d.as_mut_ptr(), (*w).r);
     z
 }
 
-// Identity function - equivalent to id(w) in the fragment
+// Identity function - direct translation of id(w)
 #[no_mangle]
 pub unsafe extern "C" fn id(w: A) -> A {
     w
 }
 
-// Size function - equivalent to size(w) in the fragment
+// Size function - direct translation of size(w)
 #[no_mangle]
 pub unsafe extern "C" fn size(w: A) -> A {
-    let z = ga(0, 0, std::ptr::null_mut());
+    let z = ga(0, 0, ptr::null_mut());
     *(*z).p.as_mut_ptr() = if (*w).r > 0 { *(*w).d.as_ptr() } else { 1 };
     z
 }
 
-// Print integer - equivalent to pi(i) in the fragment
+// Print integer - direct translation of pi(i)
 #[no_mangle]
 pub unsafe extern "C" fn pi(i: I) {
     print!("{} ", i);
 }
 
-// Print newline - equivalent to nl() in the fragment
+// Print newline - direct translation of nl()
 #[no_mangle]
 pub unsafe extern "C" fn nl() {
     println!();
 }
 
-// Print array - equivalent to pr(w) in the fragment
+// Print array - direct translation of pr(w)
 #[no_mangle]
-pub unsafe extern "C" fn pr(w: A) {
+pub unsafe extern "C" fn pr(w: A) -> I {
     let r = (*w).r;
     let d = (*w).d.as_mut_ptr();
     let n = tr(r, d);
-    do_loop(r, |i| {
+    
+    let mut i = 0;
+    while i < r {
         pi(*d.offset(i as isize));
-    });
+        i += 1;
+    }
     nl();
     
     if (*w).t != 0 {
-        do_loop(n, |i| {
+        let mut i = 0;
+        while i < n {
             print!("< ");
             pr(*(*w).p.as_mut_ptr().offset(i as isize) as A);
-        });
+            i += 1;
+        }
     } else {
-        do_loop(n, |i| {
+        let mut i = 0;
+        while i < n {
             pi(*(*w).p.as_mut_ptr().offset(i as isize));
-        });
+            i += 1;
+        }
     }
     nl();
+    0
 }
 
-// Verb table - equivalent to vt[] in the fragment
+// Verb table - direct translation of vt[]
 static mut VT: [C; 7] = [b'+' as C, b'{' as C, b'~' as C, b'<' as C, b'#' as C, b',' as C, 0];
 
-// Function pointers arrays - we need to define these properly
-// We'll populate these in the initialization code
-static mut VD: [Option<unsafe extern "C" fn(A, A) -> A>; 7] = [None; 7];
-static mut VM: [Option<unsafe extern "C" fn(A) -> A>; 7] = [None; 7];
-
-// Symbol table - equivalent to st[] in the fragment
+// Symbol table - direct translation of st[]
 static mut ST: [I; 26] = [0; 26];
 
-// Check if character is a variable name - equivalent to qp(a) in the fragment
+// Check if character is a variable name - direct translation of qp(a)
 #[no_mangle]
 pub unsafe extern "C" fn qp(a: I) -> I {
     if a >= 'a' as I && a <= 'z' as I { 1 } else { 0 }
 }
 
-// Check if character is a verb - equivalent to qv(a) in the fragment
+// Check if character is a verb - direct translation of qv(a)
 #[no_mangle]
 pub unsafe extern "C" fn qv(a: I) -> I {
     if a < 'a' as I { 1 } else { 0 }
 }
 
-// Execute expression - equivalent to ex(e) in the fragment
-#[no_mangle]
-pub unsafe extern "C" fn ex(e: *mut I) -> A {
-    let mut a = *e;
-    
-    if qp(a) != 0 {
-        if *e.offset(1) == '=' as I {
-            let idx = (a - 'a' as I) as usize;
-            if idx < ST.len() {
-                ST[idx] = ex(e.offset(2)) as I;
-                return ST[idx] as A;
-            }
-            return std::ptr::null_mut();
-        }
-        let idx = (a - 'a' as I) as usize;
-        if idx < ST.len() {
-            a = ST[idx];
-        }
-    }
-    
-    if qv(a) != 0 {
-        let idx = a as usize;
-        if idx < VM.len() && VM[idx].is_some() {
-            let vm_fn = VM[idx].unwrap();
-            return vm_fn(ex(e.offset(1)));
-        }
-        return std::ptr::null_mut();
-    } else if *e.offset(1) != 0 {
-        let idx = *e.offset(1) as usize;
-        if idx < VD.len() && VD[idx].is_some() {
-            let vd_fn = VD[idx].unwrap();
-            return vd_fn(a as A, ex(e.offset(2)));
-        }
-        return std::ptr::null_mut();
-    } else {
-        return a as A;
-    }
-}
+// We need function pointer types for the verb tables
+type V1Func = unsafe extern "C" fn(A) -> A;
+type V2Func = unsafe extern "C" fn(A, A) -> A;
 
-// Parse noun - equivalent to noun(c) in the fragment
-#[no_mangle]
-pub unsafe extern "C" fn noun(c: C) -> A {
-    if c < '0' as C || c > '9' as C {
-        return std::ptr::null_mut();
-    }
-    
-    let z = ga(0, 0, std::ptr::null_mut());
-    *(*z).p.as_mut_ptr() = c as I - '0' as I;
-    z
-}
+// Global function pointer arrays
+static mut VD: [Option<V2Func>; 7] = [None; 7];
+static mut VM: [Option<V1Func>; 7] = [None; 7];
 
-// Parse verb - equivalent to verb(c) in the fragment
-#[no_mangle]
-pub unsafe extern "C" fn verb(c: C) -> I {
-    let mut i: I = 0;
-    while VT[i as usize] != 0 {
-        if VT[i as usize] == c {
-            return i + 1;
-        }
-        i += 1;
-    }
-    0
-}
-
-// Parse words - equivalent to wd(s) in the fragment
-#[no_mangle]
-pub unsafe extern "C" fn wd(s: *const C) -> *mut I {
-    let n = strlen(s as *const i8) as I;
-    let e = ma(n + 1);
-    
-    do_loop(n, |i| {
-        let c = *s.offset(i as isize);
-        let a_noun = noun(c);
-        if !a_noun.is_null() {
-            *e.offset(i as isize) = a_noun as I;
-        } else {
-            let a_verb = verb(c);
-            if a_verb != 0 {
-                *e.offset(i as isize) = a_verb;
-            } else {
-                *e.offset(i as isize) = c as I;
-            }
-        }
-    });
-    
-    *e.offset(n as isize) = 0;
-    e
-}
-
-// Initialize the function pointer arrays
+// Initialize the function pointer tables
 fn init_function_tables() {
     unsafe {
         VD[0] = None;
@@ -343,99 +263,166 @@ fn init_function_tables() {
     }
 }
 
-// Custom print implementation that writes to a string buffer
-pub struct StringPrinter {
+// Execute expression - direct translation of ex(e)
+#[no_mangle]
+pub unsafe extern "C" fn ex(e: *mut I) -> A {
+    let mut a = *e;
+    
+    if qp(a) != 0 {
+        if *e.offset(1) == '=' as I {
+            let idx = (a - 'a' as I) as usize;
+            if idx < ST.len() {
+                ST[idx] = ex(e.offset(2)) as I;
+                return ST[idx] as A;
+            }
+            return ptr::null_mut();
+        }
+        let idx = (a - 'a' as I) as usize;
+        if idx < ST.len() {
+            a = ST[idx];
+        }
+    }
+    
+    if qv(a) != 0 {
+        let idx = a as usize;
+        if idx < VM.len() && VM[idx].is_some() {
+            let vm_fn = VM[idx].unwrap();
+            return vm_fn(ex(e.offset(1)));
+        }
+        return ptr::null_mut();
+    } else if *e.offset(1) != 0 {
+        let idx = *e.offset(1) as usize;
+        if idx < VD.len() && VD[idx].is_some() {
+            let vd_fn = VD[idx].unwrap();
+            return vd_fn(a as A, ex(e.offset(2)));
+        }
+        return ptr::null_mut();
+    } else {
+        return a as A;
+    }
+}
+
+// Parse noun - direct translation of noun(c)
+#[no_mangle]
+pub unsafe extern "C" fn noun(c: C) -> A {
+    if c < '0' as C || c > '9' as C {
+        return ptr::null_mut();
+    }
+    
+    let z = ga(0, 0, ptr::null_mut());
+    *(*z).p.as_mut_ptr() = c as I - '0' as I;
+    z
+}
+
+// Parse verb - direct translation of verb(c)
+#[no_mangle]
+pub unsafe extern "C" fn verb(c: C) -> I {
+    let mut i: I = 0;
+    while i < VT.len() as I && VT[i as usize] != 0 {
+        if VT[i as usize] == c {
+            return i + 1;
+        }
+        i += 1;
+    }
+    0
+}
+
+// Parse words - direct translation of wd(s)
+#[no_mangle]
+pub unsafe extern "C" fn wd(s: *const C) -> *mut I {
+    let n = strlen(s as *const i8) as I;
+    let e = ma(n + 1);
+    
+    let mut i = 0;
+    while i < n {
+        let c = *s.offset(i as isize);
+        let a_noun = noun(c);
+        if !a_noun.is_null() {
+            *e.offset(i as isize) = a_noun as I;
+        } else {
+            let a_verb = verb(c);
+            if a_verb != 0 {
+                *e.offset(i as isize) = a_verb;
+            } else {
+                *e.offset(i as isize) = c as I;
+            }
+        }
+        i += 1;
+    }
+    
+    *e.offset(n as isize) = 0;
+    e
+}
+
+// Capture output from print functions for our interpreter
+struct OutputCapture {
     buffer: String,
 }
 
-impl StringPrinter {
-    pub fn new() -> Self {
-        StringPrinter {
+impl OutputCapture {
+    fn new() -> Self {
+        OutputCapture {
             buffer: String::new(),
         }
     }
     
-    pub fn print(&mut self, s: &str) {
-        self.buffer.push_str(s);
-    }
-    
-    pub fn println(&mut self, s: &str) {
-        self.buffer.push_str(s);
-        self.buffer.push('\n');
-    }
-    
-    pub fn get_buffer(&self) -> &str {
-        &self.buffer
+    fn append(&mut self, text: &str) {
+        self.buffer.push_str(text);
     }
 }
 
-// Override print functions to use our custom printer
-#[no_mangle]
-pub unsafe extern "C" fn pi_custom(i: I, printer: &mut StringPrinter) {
-    printer.print(&format!("{} ", i));
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn nl_custom(printer: &mut StringPrinter) {
-    printer.println("");
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn pr_custom(w: A, printer: &mut StringPrinter) {
-    let r = (*w).r;
-    let d = (*w).d.as_mut_ptr();
-    let n = tr(r, d);
-    
-    do_loop(r, |i| {
-        pi_custom(*d.offset(i as isize), printer);
-    });
-    nl_custom(printer);
-    
-    if (*w).t != 0 {
-        do_loop(n, |i| {
-            printer.print("< ");
-            pr_custom(*(*w).p.as_mut_ptr().offset(i as isize) as A, printer);
-        });
-    } else {
-        do_loop(n, |i| {
-            pi_custom(*(*w).p.as_mut_ptr().offset(i as isize), printer);
-        });
-    }
-    nl_custom(printer);
-}
-
-// Exported function to interpret J code
+// Our main function to execute J code and return result
 #[no_mangle]
 pub unsafe extern "C" fn interpret_j_code(input: *const c_char) -> *mut c_char {
     // Initialize function tables if not already done
     init_function_tables();
     
-    // Create our custom printer
-    let mut printer = StringPrinter::new();
-    
-    // Convert C string to Rust
+    // Convert C string to Rust string
     let c_str = CStr::from_ptr(input);
     let rust_str = match c_str.to_str() {
         Ok(s) => s,
-        Err(_) => return CString::new("Error: Invalid input string").unwrap().into_raw(),
+        Err(_) => "Error: Invalid input string",
     };
     
-    // Convert Rust string to char array for C
+    // Prepare a buffer for output
+    let mut output = String::new();
+    
+    // Convert Rust string to C string for our J interpreter
     let c_input = rust_str.as_ptr() as *const C;
     
-    // Execute J code
+    // Execute the J code using the original interface
     let result = ex(wd(c_input));
+    
+    // Process the result and format it properly
     if !result.is_null() {
-        pr_custom(result, &mut printer);
+        // Format arrays and numbers in a more readable way
+        if (*result).r == 0 {
+            // Single value
+            output = format!("{}", *(*result).p.as_ptr());
+        } else {
+            // Array result
+            let n = tr((*result).r, (*result).d.as_mut_ptr());
+            output.push_str("[");
+            
+            let mut i = 0;
+            while i < n {
+                if i > 0 {
+                    output.push_str(" ");
+                }
+                output.push_str(&format!("{}", *(*result).p.as_mut_ptr().offset(i as isize)));
+                i += 1;
+            }
+            
+            output.push_str("]");
+        }
     } else {
-        printer.println("Error evaluating J expression");
+        output = "Error evaluating J expression".to_string();
     }
     
-    // Convert captured output to C string
-    match CString::new(printer.get_buffer()) {
-        Ok(s) => s.into_raw(),
-        Err(_) => CString::new("Error capturing output").unwrap().into_raw(),
-    }
+    // Return the result as a C string
+    CString::new(output).unwrap_or_else(|_| {
+        CString::new("Error capturing output").unwrap()
+    }).into_raw()
 }
 
 // Free a string created by interpret_j_code

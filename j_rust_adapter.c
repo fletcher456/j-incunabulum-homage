@@ -2,31 +2,19 @@
 #include <stdlib.h>
 #include <string.h>
 
-/**
- * This is an adapter that provides compatibility with our webserver's expected interface.
- * It calls the Rust-based J interpreter and handles memory management.
- */
-
-// Import the Rust functions
-extern char* interpret_j_code(const char* code);
+// Import the Rust functions through the FFI interface
+extern char* interpret_j_code(const char* input);
 extern void free_string(char* s);
 
-// Function that matches the interface expected by the webserver
-char* execute_j_code(const char* code) {
-    char* result;
-    char* copy;
-
-    // Call the Rust implementation
-    result = interpret_j_code(code);
-    if (!result) {
-        return strdup("Error: Failed to interpret J code");
-    }
-
-    // Make a copy of the result that will be managed by the C code
-    copy = strdup(result);
+// Wrapper function for the webserver to use
+char* execute_j_rust(const char* code) {
+    char* result = interpret_j_code(code);
     
-    // Free the original result from Rust
+    // Make a copy of the result string that can be handled by the C code
+    char* result_copy = strdup(result);
+    
+    // Free the original string allocated by Rust
     free_string(result);
     
-    return copy;
+    return result_copy;
 }
