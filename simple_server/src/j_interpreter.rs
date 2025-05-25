@@ -262,13 +262,23 @@ impl JInterpreter {
         Ok((array, idx))
     }
     
-    // Parse tokens into an AST (right to left)
+    // Parse tokens into an AST using bottom-up approach with backtracking
     fn parse(&self, tokens: Vec<Token>) -> Result<JNode, String> {
         if tokens.is_empty() {
             return Err("Empty expression".to_string());
         }
         
-        // Special case for a single number token
+        // Use the new backtracking parser
+        self.parse_with_backtracking(tokens)
+    }
+    
+    // Parse a subexpression - handles common patterns
+    fn parse_subexpression(&self, tokens: &[Token]) -> Result<JNode, String> {
+        if tokens.is_empty() {
+            return Err("Empty subexpression".to_string());
+        }
+        
+        // Single number token
         if tokens.len() == 1 {
             if let Token::Number(n) = tokens[0] {
                 return Ok(JNode::Literal(JArray::new_scalar(n)));
@@ -278,60 +288,11 @@ impl JInterpreter {
         // Handle vectors (space-separated numbers)
         if let Token::Number(_) = tokens[0] {
             // Try to parse a vector starting at index 0
-            let (vector, end_idx) = self.build_vector(&tokens, 0)?;
+            let (vector, end_idx) = self.build_vector(tokens, 0)?;
             
             // If we consumed all tokens, return the vector literal
             if end_idx >= tokens.len() {
                 return Ok(JNode::Literal(vector));
-            }
-            
-            // If the next token is a verb, we have a dyadic operation
-            if end_idx < tokens.len() && matches!(tokens[end_idx], Token::Verb(_)) {
-                let verb = if let Token::Verb(v) = tokens[end_idx] {
-                    v
-                } else {
-                    return Err("Expected verb after vector".to_string());
-                };
-                
-                // Try to parse the right operand
-                if end_idx + 1 >= tokens.len() {
-                    return Err("Expected right operand after verb".to_string());
-                }
-                
-                // If the right operand starts with a verb, it's a monadic operation
-                if matches!(tokens[end_idx + 1], Token::Verb(_)) {
-                    let right_verb = if let Token::Verb(v) = tokens[end_idx + 1] {
-                        v
-                    } else {
-                        return Err("Expected verb for right operand".to_string());
-                    };
-                    
-                    // Parse the argument to the monadic verb
-                    if end_idx + 2 >= tokens.len() {
-                        return Err("Expected argument for monadic verb".to_string());
-                    }
-                    
-                    // Build a vector for the argument
-                    let (arg_vector, _) = self.build_vector(&tokens, end_idx + 2)?;
-                    
-                    // Create the AST for the monadic operation
-                    let right_expr = JNode::MonadicVerb(right_verb, Box::new(JNode::Literal(arg_vector)));
-                    
-                    // Create the AST for the dyadic operation
-                    return Ok(JNode::DyadicVerb(verb,
-                                           Box::new(JNode::Literal(vector)),
-                                           Box::new(right_expr)));
-                } else if matches!(tokens[end_idx + 1], Token::Number(_)) {
-                    // If the right operand starts with a number, it's a vector
-                    let (right_vector, _) = self.build_vector(&tokens, end_idx + 1)?;
-                    
-                    // Create the AST for the dyadic operation
-                    return Ok(JNode::DyadicVerb(verb,
-                                           Box::new(JNode::Literal(vector)),
-                                           Box::new(JNode::Literal(right_vector))));
-                } else {
-                    return Err("Unexpected token for right operand".to_string());
-                }
             }
         }
         
@@ -343,27 +304,70 @@ impl JInterpreter {
                 return Err("Expected verb".to_string());
             };
             
-            // Case 1: Verb followed by another verb (compound monadic operation)
-            if matches!(tokens[1], Token::Verb(_)) {
-                // Parse the rest of the tokens as a subexpression
-                let sub_tokens = tokens[1..].to_vec();
-                let sub_expr = self.parse(sub_tokens)?;
-                
-                // Create a monadic verb node with the subexpression as its argument
-                return Ok(JNode::MonadicVerb(verb, Box::new(sub_expr)));
+            // Parse the rest of the tokens as the argument to the monadic verb
+            let arg_result = self.parse_subexpression(&tokens[1..]);
+            if arg_result.is_ok() {
+                return Ok(JNode::MonadicVerb(verb, Box::new(arg_result.unwrap())));
             }
             
-            // Case 2: Verb followed by a number or vector
+            // If we couldn't parse a complex expression, try a simple vector
             if matches!(tokens[1], Token::Number(_)) {
-                // Build a vector for the argument
-                let (arg_vector, _) = self.build_vector(&tokens, 1)?;
-                
+                let (arg_vector, _) = self.build_vector(tokens, 1)?;
                 return Ok(JNode::MonadicVerb(verb, Box::new(JNode::Literal(arg_vector))));
             }
         }
         
-        // For now, we don't handle more complex expressions
-        Err("Unsupported expression pattern".to_string())
+        Err("Could not parse subexpression".to_string())
+    }
+    
+    // Bottom-up parsing with backtracking
+    fn parse_with_backtracking(&self, tokens: Vec<Token>) -> Result<JNode, String> {
+        let mut backtrack_count = 0;
+        let max_backtrack = 10;
+        
+        // Start with the whole expression
+        let mut right_pos = tokens.len();
+        
+        while right_pos > 0 && backtrack_count < max_backtrack {
+            // Try to parse the rightmost part first
+            let right_tokens = &tokens[tokens.len().saturating_sub(right_pos)..];
+            let right_result = self.parse_subexpression(right_tokens);
+            
+            if let Ok(right_node) = right_result {
+                // If we parsed the entire expression, we're done
+                if right_tokens.len() == tokens.len() {
+                    return Ok(right_node);
+                }
+                
+                // Check if there's a potential dyadic operation
+                let left_end = tokens.len() - right_tokens.len();
+                if left_end > 0 && matches!(tokens[left_end-1], Token::Verb(_)) {
+                    // We have a verb before the right expression, try to parse the left side
+                    let verb_pos = left_end - 1;
+                    let verb = if let Token::Verb(v) = tokens[verb_pos] { v } else { '+' }; // Default shouldn't happen
+                    
+                    if verb_pos > 0 {
+                        let left_tokens = &tokens[0..verb_pos];
+                        let left_result = self.parse_subexpression(left_tokens);
+                        
+                        if let Ok(left_node) = left_result {
+                            // We successfully parsed a dyadic operation
+                            return Ok(JNode::DyadicVerb(verb, Box::new(left_node), Box::new(right_node)));
+                        }
+                    }
+                }
+            }
+            
+            // Backtrack by trying to parse a smaller part from the right
+            right_pos -= 1;
+            backtrack_count += 1;
+        }
+        
+        if backtrack_count >= max_backtrack {
+            return Err("Parse error: Too much backtracking required".to_string());
+        }
+        
+        Err("Could not parse expression".to_string())
     }
     
     // Evaluate an AST node

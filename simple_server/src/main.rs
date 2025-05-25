@@ -253,8 +253,12 @@ fn serve_static_file(url: &str) -> Response<std::io::Cursor<Vec<u8>>> {
         url
     };
 
-    // Try to read the file
-    let path = Path::new(file_path);
+    // Try to read the file from the static directory
+    let static_path = format!("./static/{}", file_path);
+    let path = Path::new(&static_path);
+    
+    println!("Looking for static file at: {}", static_path);
+    
     if path.exists() && path.is_file() {
         match File::open(path) {
             Ok(mut file) => {
@@ -274,10 +278,14 @@ fn serve_static_file(url: &str) -> Response<std::io::Cursor<Vec<u8>>> {
                     Response::from_string("Error reading file").with_status_code(500)
                 }
             }
-            Err(_) => Response::from_string("Error opening file").with_status_code(500),
+            Err(e) => {
+                println!("Error opening file: {:?}", e);
+                Response::from_string("Error opening file").with_status_code(500)
+            },
         }
     } else {
         // File not found - return 404
+        println!("File not found: {}", static_path);
         Response::from_string("File not found").with_status_code(404)
     }
 }
