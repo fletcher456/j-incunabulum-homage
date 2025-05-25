@@ -114,14 +114,10 @@
                 $MESSAGES$
             </div>
             
-            <div class="read-only-note">
-                <p>This is a demonstration of a J interpreter that implements:</p>
-                <ul>
-                    <li>Iota (~) - Generates a sequence from 0 to n-1</li>
-                    <li>Plus as monadic (+x) - Identity function</li>
-                    <li>Plus as dyadic (x+y) - Addition</li>
-                </ul>
-            </div>
+            <form action="/j_eval" method="post">
+                <input type="text" name="expression" placeholder="Enter J expression (try '~5' or 'help')" required>
+                <button type="submit">Evaluate</button>
+            </form>
             
             <div class="help-text">
                 Try <code>~5</code> to generate integers from 0 to 4, or type <code>help</code> for more commands.

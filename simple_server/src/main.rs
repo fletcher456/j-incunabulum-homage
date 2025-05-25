@@ -26,50 +26,6 @@ fn main() {
         messages: Mutex::new(VecDeque::new()),
         j_interpreter: JInterpreter::new(),
     });
-    
-    // Add some example executions to demonstrate the interpreter
-    {
-        let mut messages = state.messages.lock().unwrap();
-        
-        // Iota examples
-        messages.push_back(format!("<div class=\"message input\">> ~5</div>"));
-        let result = state.j_interpreter.execute("~5");
-        let formatted_result = format_result(result);
-        messages.push_back(format!("<div class=\"message output\">  {}</div>", html_escape(&formatted_result)));
-        
-        // Monadic plus examples
-        messages.push_back(format!("<div class=\"message input\">> +10</div>"));
-        let result = state.j_interpreter.execute("+10");
-        let formatted_result = format_result(result);
-        messages.push_back(format!("<div class=\"message output\">  {}</div>", html_escape(&formatted_result)));
-        
-        messages.push_back(format!("<div class=\"message input\">> +1 2 3 4 5</div>"));
-        let result = state.j_interpreter.execute("+1 2 3 4 5");
-        let formatted_result = format_result(result);
-        messages.push_back(format!("<div class=\"message output\">  {}</div>", html_escape(&formatted_result)));
-        
-        // Dyadic plus examples
-        messages.push_back(format!("<div class=\"message input\">> 2 + 3</div>"));
-        let result = state.j_interpreter.execute("2 + 3");
-        let formatted_result = format_result(result);
-        messages.push_back(format!("<div class=\"message output\">  {}</div>", html_escape(&formatted_result)));
-        
-        messages.push_back(format!("<div class=\"message input\">> 10 + 1 2 3 4 5</div>"));
-        let result = state.j_interpreter.execute("10 + 1 2 3 4 5");
-        let formatted_result = format_result(result);
-        messages.push_back(format!("<div class=\"message output\">  {}</div>", html_escape(&formatted_result)));
-        
-        messages.push_back(format!("<div class=\"message input\">> 1 2 3 + 4 5 6</div>"));
-        let result = state.j_interpreter.execute("1 2 3 + 4 5 6");
-        let formatted_result = format_result(result);
-        messages.push_back(format!("<div class=\"message output\">  {}</div>", html_escape(&formatted_result)));
-        
-        // Help command
-        messages.push_back(format!("<div class=\"message input\">> help</div>"));
-        let result = state.j_interpreter.execute("help");
-        let formatted_result = format_result(result);
-        messages.push_back(format!("<div class=\"message error\">  {}</div>", html_escape(&formatted_result)));
-    }
 
     // Handle incoming requests
     for mut request in server.incoming_requests() {
