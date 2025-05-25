@@ -183,29 +183,6 @@ impl JInterpreter {
         Ok(JArray::new_integer(1, vec![values.len()], values))
     }
 
-    // Evaluate a token as a J expression
-    fn eval_token(&self, token: &str) -> Result<JArray, String> {
-        // Check for our special array format
-        if token.starts_with("__ARRAY__") {
-            let array_data = &token[9..]; // Skip the "__ARRAY__" prefix
-            return self.parse_numeric_vector(array_data);
-        }
-        
-        // Try to parse as a scalar
-        if let Ok(n) = token.parse::<i64>() {
-            return Ok(JArray::new_scalar(n));
-        }
-        
-        // Try to parse as a vector
-        match self.parse_numeric_vector(token) {
-            Ok(array) => return Ok(array),
-            Err(_) => {}  // Continue to next checks
-        }
-        
-        // Unsupported token
-        Err(format!("Unsupported token: '{}'", token))
-    }
-    
     // Parse and execute a J expression
     pub fn execute(&self, input: &str) -> Result<JArray, String> {
         let input = input.trim();
@@ -216,169 +193,78 @@ impl JInterpreter {
                        ~n - iota: generate integers from 0 to n-1\n\
                        +y - plus (monadic): identity function\n\
                        x+y - plus (dyadic): element-wise addition\n\
-                       Compound expressions with precedence are supported (e.g., '1+~5')\n\
                        help - show this help message".to_string());
         }
         
-        // Tokenize the input for parsing with operator precedence
-        let mut tokens = Vec::new();
-        let mut current_token = String::new();
-        let mut i = 0;
-        let input_chars: Vec<char> = input.chars().collect();
-        
-        while i < input_chars.len() {
-            let c = input_chars[i];
+        // Handle monadic plus (identity)
+        if input.starts_with('+') {
+            let arg = input[1..].trim();
             
-            match c {
-                '+' | '~' => {
-                    // If we have a current token, add it to tokens
-                    if !current_token.is_empty() {
-                        tokens.push(current_token.clone());
-                        current_token.clear();
-                    }
-                    
-                    // Add the operator as a separate token
-                    tokens.push(c.to_string());
-                },
-                ' ' => {
-                    // Space - if we have a current token, add it to tokens
-                    if !current_token.is_empty() {
-                        tokens.push(current_token.clone());
-                        current_token.clear();
-                    }
-                },
-                _ => {
-                    // Add to current token
-                    current_token.push(c);
-                }
+            // Try to parse the argument as a scalar
+            if let Ok(n) = arg.parse::<i64>() {
+                return self.plus_monadic(&JArray::new_scalar(n));
             }
             
-            i += 1;
-        }
-        
-        // Add any remaining token
-        if !current_token.is_empty() {
-            tokens.push(current_token);
-        }
-        
-        // Handle an empty expression
-        if tokens.is_empty() {
-            return Err("Empty expression".to_string());
-        }
-        
-        // Process monadic verbs first (right to left)
-        let mut i = tokens.len() - 1;
-        while i > 0 {
-            if tokens[i - 1] == "~" && i < tokens.len() {
-                // Handle iota
-                if let Ok(n) = tokens[i].parse::<i64>() {
-                    let result = self.iota(n)?;
-                    tokens.remove(i);
-                    tokens.remove(i - 1);
-                    
-                    // For arrays, we need to store them in a special format for internal processing
-                    let array_str = if result.rank == 1 {
-                        // For vectors, store as special format that will be recognized by eval_token
-                        let nums = result.data.iter()
-                            .map(|n| n.to_string())
-                            .collect::<Vec<_>>()
-                            .join(" ");
-                        format!("__ARRAY__{}", nums)
-                    } else {
-                        // For other ranks, just use standard formatting
-                        format!("{}", result)
-                    };
-                    
-                    tokens.insert(i - 1, array_str);
-                    i -= 1;
-                } else {
-                    return Err(format!("Invalid argument for iota: '{}'", tokens[i]));
-                }
-            } else if tokens[i - 1] == "+" && i < tokens.len() {
-                // Handle monadic plus
-                let right_result = self.eval_token(&tokens[i])?;
-                let result = self.plus_monadic(&right_result)?;
-                tokens.remove(i);
-                tokens.remove(i - 1);
-                
-                // Format the result the same way as for iota
-                let array_str = if result.rank == 1 {
-                    let nums = result.data.iter()
-                        .map(|n| n.to_string())
-                        .collect::<Vec<_>>()
-                        .join(" ");
-                    format!("__ARRAY__{}", nums)
-                } else {
-                    format!("{}", result)
-                };
-                
-                tokens.insert(i - 1, array_str);
-                i -= 1;
-            } else {
-                i -= 1;
+            // Try to parse the argument as a vector
+            match self.parse_numeric_vector(arg) {
+                Ok(array) => return self.plus_monadic(&array),
+                Err(_) => return Err(format!("Invalid argument for monadic plus: '{}'", arg)),
             }
         }
         
-        // Process dyadic verbs (right to left)
-        i = tokens.len() - 2;
-        while i > 0 {
-            if tokens[i] == "+" {
+        // Handle iota verb
+        if input.starts_with('~') {
+            let arg = input[1..].trim();
+            match arg.parse::<i64>() {
+                Ok(n) => return self.iota(n),
+                Err(_) => return Err(format!("Invalid argument for iota: '{}'", arg)),
+            }
+        }
+        
+        // Try to parse dyadic plus: "x + y"
+        if input.contains('+') {
+            let parts: Vec<&str> = input.split('+').collect();
+            if parts.len() == 2 {
+                let left_str = parts[0].trim();
+                let right_str = parts[1].trim();
+                
                 // Parse left operand
-                let left_result = self.eval_token(&tokens[i - 1])?;
+                let left = if let Ok(n) = left_str.parse::<i64>() {
+                    JArray::new_scalar(n)
+                } else {
+                    match self.parse_numeric_vector(left_str) {
+                        Ok(array) => array,
+                        Err(_) => return Err(format!("Invalid left operand for dyadic plus: '{}'", left_str)),
+                    }
+                };
                 
                 // Parse right operand
-                let right_result = self.eval_token(&tokens[i + 1])?;
-                
-                // Apply dyadic plus
-                let result = self.plus_dyadic(&left_result, &right_result)?;
-                
-                // Replace the operation and operands with the result
-                tokens.remove(i + 1);
-                tokens.remove(i);
-                tokens.remove(i - 1);
-                
-                // Format the result the same way as for other operations
-                let array_str = if result.rank == 1 {
-                    let nums = result.data.iter()
-                        .map(|n| n.to_string())
-                        .collect::<Vec<_>>()
-                        .join(" ");
-                    format!("__ARRAY__{}", nums)
+                let right = if let Ok(n) = right_str.parse::<i64>() {
+                    JArray::new_scalar(n)
                 } else {
-                    format!("{}", result)
+                    match self.parse_numeric_vector(right_str) {
+                        Ok(array) => array,
+                        Err(_) => return Err(format!("Invalid right operand for dyadic plus: '{}'", right_str)),
+                    }
                 };
                 
-                tokens.insert(i - 1, array_str);
-                
-                // Adjust index
-                i = tokens.len() - 2;
-            } else {
-                i -= 1;
+                return self.plus_dyadic(&left, &right);
             }
         }
         
-        // By now, we should have a single token that is our result
-        if tokens.len() == 1 {
-            // Check for our special array format
-            if tokens[0].starts_with("__ARRAY__") {
-                let array_data = &tokens[0][9..]; // Skip the "__ARRAY__" prefix
-                return self.parse_numeric_vector(array_data);
-            }
-        
-            // Try to parse the final result
-            if let Ok(n) = tokens[0].parse::<i64>() {
-                return Ok(JArray::new_scalar(n));
-            }
-            
-            // Try to parse as a vector
-            match self.parse_numeric_vector(&tokens[0]) {
-                Ok(array) => return Ok(array),
-                Err(_) => {}  // Continue to final error
-            }
+        // Simple numeric scalar
+        if let Ok(n) = input.parse::<i64>() {
+            return Ok(JArray::new_scalar(n));
         }
         
-        // If we still have multiple tokens or couldn't parse the final token
-        Err(format!("Failed to evaluate expression: '{}', tokens: {:?}", input, tokens))
+        // Simple numeric vector
+        match self.parse_numeric_vector(input) {
+            Ok(array) => return Ok(array),
+            Err(_) => {}  // Continue to next checks
+        }
+        
+        // Unsupported expression
+        Err(format!("Unsupported J expression: '{}'", input))
     }
 }
 
