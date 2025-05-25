@@ -16,6 +16,10 @@ author = "agent"
 task = "workflow.run"
 args = "C Webserver"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "J_Interpreter_Web"
+
 [[workflows.workflow]]
 name = "C Webserver"
 author = "agent"
@@ -23,6 +27,15 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "gcc webserver.c -o webserver && ./webserver"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "J_Interpreter_Web"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd j_web_repl && cargo run"
 waitForPort = 5000
 
 [deployment]
