@@ -34,7 +34,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "gcc -o webserver webserver.c simple_j.c -lm && ./webserver"
+args = "gcc -o webserver webserver.c simplified_j.c -lm && ./webserver"
 waitForPort = 5000
 
 [deployment]
