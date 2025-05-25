@@ -1,6 +1,6 @@
 /**
- * HTTP server in C
- * Serves a form for submitting messages and displays submission history
+ * HTTP server in C with J interpreter
+ * Serves a form for submitting J code and displays execution results
  * Handles both GET and POST requests on port 5000
  */
 
@@ -14,15 +14,22 @@
 #include <sys/types.h>
 #include <signal.h>
 #include <time.h>
+#include <math.h>
 
 #define PORT 5000
 #define BUFFER_SIZE 4096
 #define MAX_SUBMISSIONS 100
 #define MAX_SUBMISSION_LENGTH 1024
+#define J_TEMP_FILE "/tmp/j_code.ijs"
+#define J_OUTPUT_FILE "/tmp/j_output.txt"
+
+// Import the J interpreter function
+extern char* execute_j_code(const char* code);
 
 // Structure to store submissions
 typedef struct {
-    char message[MAX_SUBMISSION_LENGTH];
+    char code[MAX_SUBMISSION_LENGTH];
+    char result[MAX_SUBMISSION_LENGTH];
     char timestamp[32];
 } Submission;
 
@@ -47,8 +54,10 @@ void generate_timestamp(char *timestamp_buffer, size_t buffer_size) {
     strftime(timestamp_buffer, buffer_size, "%Y-%m-%d %H:%M:%S", t);
 }
 
+// The J interpreter functionality is now in j_interpreter.c
+
 // Add a new submission to the history
-void add_submission(const char *message) {
+void add_submission(const char *code) {
     if (submission_count >= MAX_SUBMISSIONS) {
         // If we reach the limit, shift all entries to make room for new one
         for (int i = 0; i < MAX_SUBMISSIONS - 1; i++) {
@@ -57,9 +66,16 @@ void add_submission(const char *message) {
         submission_count = MAX_SUBMISSIONS - 1;
     }
     
-    // Add the new submission
-    strncpy(submissions[submission_count].message, message, MAX_SUBMISSION_LENGTH - 1);
-    submissions[submission_count].message[MAX_SUBMISSION_LENGTH - 1] = '\0'; // Ensure null termination
+    // Add the submission code
+    strncpy(submissions[submission_count].code, code, MAX_SUBMISSION_LENGTH - 1);
+    submissions[submission_count].code[MAX_SUBMISSION_LENGTH - 1] = '\0'; // Ensure null termination
+    
+    // Interpret the J code
+    char *result = execute_j_code(code);
+    
+    // Store the result
+    strncpy(submissions[submission_count].result, result, MAX_SUBMISSION_LENGTH - 1);
+    submissions[submission_count].result[MAX_SUBMISSION_LENGTH - 1] = '\0';
     
     // Add timestamp
     generate_timestamp(submissions[submission_count].timestamp, sizeof(submissions[submission_count].timestamp));
@@ -67,9 +83,11 @@ void add_submission(const char *message) {
     submission_count++;
 }
 
-// Initialize with a welcome message
+// Initialize with example J code
 void init_submissions() {
-    add_submission("Hello world!");
+    add_submission("2 + 2");
+    add_submission("1 2 3 + 5");
+    add_submission("10 * 3");
 }
 
 // Generate the HTML content for the page
