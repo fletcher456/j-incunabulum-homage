@@ -18,7 +18,11 @@ args = "C Webserver"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "run_webserver"
+args = "run_simplified_webserver"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "run_j_webserver"
 
 [[workflows.workflow]]
 name = "C Webserver"
@@ -30,7 +34,16 @@ args = "gcc webserver.c -o webserver && ./webserver"
 waitForPort = 5000
 
 [[workflows.workflow]]
-name = "run_webserver"
+name = "run_simplified_webserver"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "gcc -o webserver webserver.c j_simple.c -lm && ./webserver"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "run_j_webserver"
 author = "agent"
 
 [[workflows.workflow.tasks]]

@@ -1,9 +1,3 @@
-/**
- * HTTP server in C with J interpreter
- * Serves a form for submitting J code and displays execution results
- * Handles both GET and POST requests on port 5000
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,325 +5,241 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <sys/types.h>
-#include <signal.h>
-#include <time.h>
-#include <math.h>
+#include <ctype.h>
 
-#define PORT 5000
-#define BUFFER_SIZE 4096
-#define MAX_SUBMISSIONS 100
-#define MAX_SUBMISSION_LENGTH 1024
-#define J_TEMP_FILE "/tmp/j_code.ijs"
-#define J_OUTPUT_FILE "/tmp/j_output.txt"
+// Define a maximum message history size
+#define MAX_MESSAGES 10
+#define MAX_MESSAGE_LEN 1024
+#define MAX_RESPONSE_SIZE 4096
 
-// Import the J interpreter function
+// Use j_simple.c for our J interpreter implementation
 extern char* execute_j_code(const char* code);
 
-// Structure to store submissions
-typedef struct {
-    char code[MAX_SUBMISSION_LENGTH];
-    char result[MAX_SUBMISSION_LENGTH];
-    char timestamp[32];
-} Submission;
+// Arrays to store message history
+char messages[MAX_MESSAGES][MAX_MESSAGE_LEN];
+int message_count = 0;
 
-// Global variables
-int server_fd; // For cleanup in signal handler
-Submission submissions[MAX_SUBMISSIONS]; // Store submission history
-int submission_count = 0; // Track number of submissions
+// HTML template for the response
+const char* html_template = 
+"HTTP/1.1 200 OK\r\n"
+"Content-Type: text/html\r\n\r\n"
+"<!DOCTYPE html>\n"
+"<html>\n"
+"<head>\n"
+"    <title>J Language Interpreter</title>\n"
+"    <style>\n"
+"        body { font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }\n"
+"        h1 { color: #333; }\n"
+"        form { margin-bottom: 20px; }\n"
+"        input[type='text'] { width: 70%%; padding: 8px; }\n"
+"        input[type='submit'] { padding: 8px 15px; background: #4CAF50; border: none; color: white; cursor: pointer; }\n"
+"        .history { background: #f9f9f9; padding: 15px; border-radius: 5px; }\n"
+"        .entry { margin-bottom: 10px; }\n"
+"        .input { color: #0066cc; }\n"
+"        .output { color: #cc6600; }\n"
+"    </style>\n"
+"</head>\n"
+"<body>\n"
+"    <h1>J Language Interpreter</h1>\n"
+"    <p>Enter a J expression to evaluate:</p>\n"
+"    <form method='post'>\n"
+"        <input type='text' name='message' placeholder='Enter J expression (e.g., i.5 or 2+2)' required>\n"
+"        <input type='submit' value='Evaluate'>\n"
+"    </form>\n"
+"    <div class='history'>\n"
+"        <h2>Evaluation History</h2>\n"
+"        %s\n"
+"    </div>\n"
+"</body>\n"
+"</html>";
 
-// Signal handler for graceful shutdown
-void handle_signal(int sig) {
-    printf("\nCaught signal %d. Shutting down server...\n", sig);
-    if (server_fd > 0) {
-        close(server_fd);
-    }
-    exit(0);
-}
-
-// Function to generate timestamp for submissions
-void generate_timestamp(char *timestamp_buffer, size_t buffer_size) {
-    time_t now = time(NULL);
-    struct tm *t = localtime(&now);
-    strftime(timestamp_buffer, buffer_size, "%Y-%m-%d %H:%M:%S", t);
-}
-
-// The J interpreter functionality is now in j_interpreter.c
-
-// Add a new submission to the history
-void add_submission(const char *code) {
-    if (submission_count >= MAX_SUBMISSIONS) {
-        // If we reach the limit, shift all entries to make room for new one
-        for (int i = 0; i < MAX_SUBMISSIONS - 1; i++) {
-            memcpy(&submissions[i], &submissions[i + 1], sizeof(Submission));
-        }
-        submission_count = MAX_SUBMISSIONS - 1;
-    }
-    
-    // Add the submission code
-    strncpy(submissions[submission_count].code, code, MAX_SUBMISSION_LENGTH - 1);
-    submissions[submission_count].code[MAX_SUBMISSION_LENGTH - 1] = '\0'; // Ensure null termination
-    
-    // Interpret the J code
-    char *result = execute_j_code(code);
-    
-    // Store the result
-    strncpy(submissions[submission_count].result, result, MAX_SUBMISSION_LENGTH - 1);
-    submissions[submission_count].result[MAX_SUBMISSION_LENGTH - 1] = '\0';
-    
-    // Add timestamp
-    generate_timestamp(submissions[submission_count].timestamp, sizeof(submissions[submission_count].timestamp));
-    
-    submission_count++;
-}
-
-// Initialize with example J code
-void init_submissions() {
-    add_submission("2 + 2");
-    add_submission("1 2 3 + 5");
-    add_submission("10 * 3");
-}
-
-// Generate the HTML content for the page
-void generate_html_response(char *response_buffer, size_t buffer_size) {
-    // Start with the header
-    int offset = snprintf(response_buffer, buffer_size,
-        "<!DOCTYPE html>\n"
-        "<html>\n"
-        "<head>\n"
-        "    <title>J Language Interpreter</title>\n"
-        "    <style>\n"
-        "        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }\n"
-        "        .submission { border: 1px solid #ddd; border-radius: 5px; margin-bottom: 15px; padding: 15px; background-color: #f9f9f9; }\n"
-        "        .code { font-family: monospace; background-color: #333; color: #fff; padding: 10px; border-radius: 4px; margin-bottom: 10px; }\n"
-        "        .result { font-family: monospace; background-color: #eee; padding: 10px; border-radius: 4px; white-space: pre-wrap; }\n"
-        "        .timestamp { color: #888; font-size: 12px; text-align: right; margin-top: 10px; }\n"
-        "        form { margin-top: 30px; padding: 15px; background: #f0f0f0; border-radius: 5px; }\n"
-        "        input[type=text] { width: 80%%; padding: 10px; font-family: monospace; }\n"
-        "        input[type=submit] { padding: 10px 15px; background: #4050B0; color: white; border: none; cursor: pointer; }\n"
-        "        h1 { color: #4050B0; }\n"
-        "        .examples { margin: 20px 0; padding: 15px; background: #efefef; border-radius: 5px; }\n"
-        "        .examples h3 { margin-top: 0; }\n"
-        "        .examples code { background: #ddd; padding: 2px 5px; border-radius: 3px; }\n"
-        "    </style>\n"
-        "</head>\n"
-        "<body>\n"
-        "    <h1>J Language Interpreter</h1>\n"
-        "    <p>Enter J code in the form below to execute it. Results will be displayed in the history.</p>\n"
-        "    <div class=\"examples\">\n"
-        "        <h3>Example J Expressions:</h3>\n"
-        "        <p><code>2+2</code> - Addition</p>\n"
-        "        <p><code>3*4</code> - Multiplication</p>\n"
-        "        <p><code>1 2 3+5</code> - Array addition</p>\n"
-        "        <p><code>i.5</code> - Create array with values 0 to 4</p>\n"
-        "    </div>\n"
-    );
-
-    // Add the submission form at the top for convenience
-    offset += snprintf(response_buffer + offset, buffer_size - offset,
-        "    <form method=\"POST\" action=\"/\">\n"
-        "        <input type=\"text\" name=\"message\" placeholder=\"Enter J code (e.g., 2+2, i.5, etc.)\" required>\n"
-        "        <input type=\"submit\" value=\"Execute\">\n"
-        "    </form>\n"
-        "    <h2>Execution History</h2>\n"
-    );
-
-    // Add the submissions history in reverse order (newest first)
-    for (int i = submission_count - 1; i >= 0; i--) {
-        offset += snprintf(response_buffer + offset, buffer_size - offset,
-            "    <div class=\"submission\">\n"
-            "        <div class=\"code\">%s</div>\n"
-            "        <div class=\"result\">%s</div>\n"
-            "        <div class=\"timestamp\">%s</div>\n"
-            "    </div>\n",
-            submissions[i].code,
-            submissions[i].result,
-            submissions[i].timestamp
-        );
-    }
-
-    // Close the HTML
-    offset += snprintf(response_buffer + offset, buffer_size - offset,
-        "</body>\n"
-        "</html>\n"
-    );
-}
-
-// Parse POST request to extract the message
-char* parse_post_data(char *buffer) {
-    static char message[MAX_SUBMISSION_LENGTH];
-    char *content_start = strstr(buffer, "\r\n\r\n");
-    
-    if (!content_start) {
-        return NULL; // No content found
-    }
-    
-    content_start += 4; // Skip over the \r\n\r\n
-    
-    // Look for the message parameter
-    char *message_param = strstr(content_start, "message=");
-    if (!message_param) {
-        return NULL; // No message parameter found
-    }
-    
-    message_param += 8; // Skip over "message="
-    
-    // Copy and decode the message
-    int i = 0, j = 0;
-    while (message_param[i] && message_param[i] != '&' && message_param[i] != '\r' && message_param[i] != '\n' && j < MAX_SUBMISSION_LENGTH - 1) {
-        if (message_param[i] == '+') {
-            message[j++] = ' '; // Replace '+' with space
-        } else if (message_param[i] == '%' && message_param[i+1] && message_param[i+2]) {
-            // Handle URL encoding (e.g., %20 for space)
-            char hex[3] = {message_param[i+1], message_param[i+2], 0};
-            int value;
-            sscanf(hex, "%x", &value);
-            message[j++] = (char)value;
-            i += 2;
+// Function to URL decode input
+void url_decode(char *dst, const char *src) {
+    char a, b;
+    while (*src) {
+        if ((*src == '%') && ((a = src[1]) && (b = src[2])) && 
+            (isxdigit(a) && isxdigit(b))) {
+            if (a >= 'a') a -= 'a' - 'A';
+            if (a >= 'A') a -= ('A' - 10);
+            else a -= '0';
+            
+            if (b >= 'a') b -= 'a' - 'A';
+            if (b >= 'A') b -= ('A' - 10);
+            else b -= '0';
+            
+            *dst++ = 16 * a + b;
+            src += 3;
+        } else if (*src == '+') {
+            *dst++ = ' ';
+            src++;
         } else {
-            message[j++] = message_param[i];
+            *dst++ = *src++;
         }
-        i++;
     }
-    message[j] = '\0'; // Null-terminate
+    *dst = '\0';
+}
+
+// Function to add a message to history
+void add_message(const char* input, const char* output) {
+    if (message_count >= MAX_MESSAGES) {
+        // Shift messages to make room for new one
+        for (int i = 0; i < MAX_MESSAGES - 1; i++) {
+            strcpy(messages[i], messages[i + 1]);
+        }
+        message_count = MAX_MESSAGES - 1;
+    }
     
-    return message;
+    // Format and store the new message
+    snprintf(messages[message_count], MAX_MESSAGE_LEN, 
+             "<div class='entry'><span class='input'>Input: %s</span><br>"
+             "<span class='output'>Output: %s</span></div>", 
+             input, output);
+    
+    message_count++;
+}
+
+// Function to generate the history HTML
+void generate_history(char* buffer, size_t buffer_size) {
+    buffer[0] = '\0';  // Initialize buffer to empty string
+    
+    for (int i = message_count - 1; i >= 0; i--) {
+        strncat(buffer, messages[i], buffer_size - strlen(buffer) - 1);
+    }
 }
 
 int main() {
-    struct sockaddr_in address;
-    int addrlen = sizeof(address);
-    int new_socket;
-    char buffer[BUFFER_SIZE] = {0};
-    char response[BUFFER_SIZE * 4]; // Larger buffer for HTML content
+    int server_fd, client_fd;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    char buffer[4096], response[MAX_RESPONSE_SIZE];
+    char history_buffer[MAX_RESPONSE_SIZE];
     
-    // Initialize submission history
-    init_submissions();
-    
-    // Setup signal handlers for graceful shutdown
-    signal(SIGINT, handle_signal);
-    signal(SIGTERM, handle_signal);
-    
-    // Create server socket
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+    // Create socket
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("Socket creation failed");
         exit(EXIT_FAILURE);
     }
     
-    // Set socket options to reuse address and port
+    // Set socket options to reuse address
     int opt = 1;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
         perror("Setsockopt failed");
         exit(EXIT_FAILURE);
     }
     
-    // Configure server address
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY; // Bind to 0.0.0.0
-    address.sin_port = htons(PORT);
+    // Prepare the sockaddr_in structure
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(5000);
     
-    // Bind socket to port
-    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    // Bind the socket
+    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("Bind failed");
         exit(EXIT_FAILURE);
     }
     
-    // Listen for connections
-    if (listen(server_fd, 10) < 0) {
+    // Listen for incoming connections
+    if (listen(server_fd, 5) < 0) {
         perror("Listen failed");
         exit(EXIT_FAILURE);
     }
     
-    printf("Server started on port %d...\n", PORT);
+    printf("Server started on port 5000...\n");
     
-    // Main server loop
     while (1) {
         printf("Waiting for a connection...\n");
         
-        // Accept connection from client
-        if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
+        // Accept a connection
+        if ((client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len)) < 0) {
             perror("Accept failed");
-            continue; // Continue to accept next connection
-        }
-        
-        char client_ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &(address.sin_addr), client_ip, INET_ADDRSTRLEN);
-        printf("Connection accepted from %s:%d\n", client_ip, ntohs(address.sin_port));
-        
-        // Read client request
-        ssize_t bytes_read = read(new_socket, buffer, BUFFER_SIZE);
-        if (bytes_read < 0) {
-            perror("Read failed");
-            close(new_socket);
             continue;
         }
         
-        // Process the request based on method
+        printf("Connection accepted from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+        
+        // Receive data from client
+        int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+        if (bytes_received < 0) {
+            perror("Receive failed");
+            close(client_fd);
+            continue;
+        }
+        
+        buffer[bytes_received] = '\0';
+        
+        // Check if it's a GET or POST request
         if (strncmp(buffer, "GET", 3) == 0) {
             printf("Received GET request\n");
             
-            // Generate HTML for the page
-            generate_html_response(response, sizeof(response));
+            // Generate history HTML
+            generate_history(history_buffer, sizeof(history_buffer));
             
-            // Create HTTP headers
-            char headers[BUFFER_SIZE];
-            int content_length = strlen(response);
-            snprintf(headers, BUFFER_SIZE,
-                "HTTP/1.1 200 OK\r\n"
-                "Content-Type: text/html\r\n"
-                "Content-Length: %d\r\n"
-                "Connection: close\r\n"
-                "\r\n", content_length);
+            // Create response with history
+            snprintf(response, sizeof(response), html_template, history_buffer);
             
-            // Send headers and content
-            write(new_socket, headers, strlen(headers));
-            write(new_socket, response, content_length);
-            
-            printf("GET response sent successfully\n");
-            
+            // Send response
+            if (send(client_fd, response, strlen(response), 0) < 0) {
+                perror("Send failed");
+            } else {
+                printf("GET response sent successfully\n");
+            }
         } else if (strncmp(buffer, "POST", 4) == 0) {
             printf("Received POST request\n");
             
-            // Parse the POST data to get the message
-            char *message = parse_post_data(buffer);
-            if (message && strlen(message) > 0) {
-                printf("Received message: %s\n", message);
-                add_submission(message);
+            // Find the start of the message data
+            char* message_start = strstr(buffer, "message=");
+            if (message_start) {
+                message_start += 8;  // Skip "message="
+                
+                // Find the end of the message (either & or end of line)
+                char* message_end = strstr(message_start, "&");
+                if (!message_end) {
+                    message_end = strstr(message_start, "\r\n");
+                }
+                
+                if (message_end) {
+                    *message_end = '\0';  // Null terminate the message
+                    
+                    // URL decode the message
+                    char decoded_message[MAX_MESSAGE_LEN];
+                    url_decode(decoded_message, message_start);
+                    
+                    // Process the J expression
+                    char* result = execute_j_code(decoded_message);
+                    
+                    // Add to history
+                    add_message(decoded_message, result);
+                    
+                    // Generate updated history HTML
+                    generate_history(history_buffer, sizeof(history_buffer));
+                    
+                    // Create response with updated history
+                    snprintf(response, sizeof(response), html_template, history_buffer);
+                    
+                    // Free the result string
+                    free(result);
+                    
+                    // Send response with redirect
+                    char redirect_response[MAX_RESPONSE_SIZE];
+                    snprintf(redirect_response, sizeof(redirect_response),
+                             "HTTP/1.1 303 See Other\r\nLocation: /\r\n\r\n");
+                    
+                    if (send(client_fd, redirect_response, strlen(redirect_response), 0) < 0) {
+                        perror("Send failed");
+                    } else {
+                        printf("POST response (redirect) sent successfully\n");
+                    }
+                }
             }
-            
-            // Send a redirect to reload the page
-            const char *redirect_response =
-                "HTTP/1.1 303 See Other\r\n"
-                "Location: /\r\n"
-                "Connection: close\r\n"
-                "\r\n";
-            
-            write(new_socket, redirect_response, strlen(redirect_response));
-            printf("POST response (redirect) sent successfully\n");
-            
-        } else {
-            // Method not supported
-            const char *error_response = 
-                "HTTP/1.1 501 Not Implemented\r\n"
-                "Content-Type: text/plain\r\n"
-                "Content-Length: 22\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-                "Method not supported.";
-            
-            write(new_socket, error_response, strlen(error_response));
-            printf("Unsupported HTTP method\n");
         }
         
-        // Close client socket
-        close(new_socket);
+        // Close the connection
+        close(client_fd);
         printf("Connection closed\n");
-        
-        // Clear buffer for next request
-        memset(buffer, 0, BUFFER_SIZE);
     }
     
-    // Should never reach here, but for completeness
+    // Close the server socket
     close(server_fd);
+    
     return 0;
 }
