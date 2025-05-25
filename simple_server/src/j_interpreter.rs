@@ -185,6 +185,12 @@ impl JInterpreter {
 
     // Evaluate a token as a J expression
     fn eval_token(&self, token: &str) -> Result<JArray, String> {
+        // Check for our special array format
+        if token.starts_with("__ARRAY__") {
+            let array_data = &token[9..]; // Skip the "__ARRAY__" prefix
+            return self.parse_numeric_vector(array_data);
+        }
+        
         // Try to parse as a scalar
         if let Ok(n) = token.parse::<i64>() {
             return Ok(JArray::new_scalar(n));
@@ -269,7 +275,21 @@ impl JInterpreter {
                     let result = self.iota(n)?;
                     tokens.remove(i);
                     tokens.remove(i - 1);
-                    tokens.insert(i - 1, format!("{}", result));
+                    
+                    // For arrays, we need to store them in a special format for internal processing
+                    let array_str = if result.rank == 1 {
+                        // For vectors, store as special format that will be recognized by eval_token
+                        let nums = result.data.iter()
+                            .map(|n| n.to_string())
+                            .collect::<Vec<_>>()
+                            .join(" ");
+                        format!("__ARRAY__{}", nums)
+                    } else {
+                        // For other ranks, just use standard formatting
+                        format!("{}", result)
+                    };
+                    
+                    tokens.insert(i - 1, array_str);
                     i -= 1;
                 } else {
                     return Err(format!("Invalid argument for iota: '{}'", tokens[i]));
@@ -280,7 +300,19 @@ impl JInterpreter {
                 let result = self.plus_monadic(&right_result)?;
                 tokens.remove(i);
                 tokens.remove(i - 1);
-                tokens.insert(i - 1, format!("{}", result));
+                
+                // Format the result the same way as for iota
+                let array_str = if result.rank == 1 {
+                    let nums = result.data.iter()
+                        .map(|n| n.to_string())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    format!("__ARRAY__{}", nums)
+                } else {
+                    format!("{}", result)
+                };
+                
+                tokens.insert(i - 1, array_str);
                 i -= 1;
             } else {
                 i -= 1;
@@ -304,7 +336,19 @@ impl JInterpreter {
                 tokens.remove(i + 1);
                 tokens.remove(i);
                 tokens.remove(i - 1);
-                tokens.insert(i - 1, format!("{}", result));
+                
+                // Format the result the same way as for other operations
+                let array_str = if result.rank == 1 {
+                    let nums = result.data.iter()
+                        .map(|n| n.to_string())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    format!("__ARRAY__{}", nums)
+                } else {
+                    format!("{}", result)
+                };
+                
+                tokens.insert(i - 1, array_str);
                 
                 // Adjust index
                 i = tokens.len() - 2;
