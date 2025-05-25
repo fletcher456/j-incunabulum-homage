@@ -76,6 +76,8 @@
             margin-bottom: 10px;
             font-size: 16px;
             font-family: monospace;
+            background-color: #f8f8f8;
+            pointer-events: none; /* Prevent direct typing */
         }
         button {
             padding: 10px 15px;
@@ -96,6 +98,53 @@
             width: 100%;
             max-width: 600px;
         }
+        .calculator {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+        .verb-pad {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+        .btn {
+            padding: 8px;
+            background-color: #e9e9e9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-family: monospace;
+            transition: background-color 0.2s;
+        }
+        .btn:hover {
+            background-color: #d4d4d4;
+        }
+        .btn-number {
+            background-color: #f0f0f0;
+        }
+        .btn-verb {
+            background-color: #e6f7ff;
+            font-weight: bold;
+        }
+        .btn-control {
+            background-color: #ffe6e6;
+        }
+        .btn-eval {
+            background-color: #4285f4;
+            color: white;
+            grid-column: span 2;
+        }
+        .btn-clear {
+            background-color: #ff6b6b;
+            color: white;
+        }
+        .btn-space {
+            grid-column: span 2;
+        }
         .help-text {
             font-size: 14px;
             color: #666;
@@ -114,13 +163,46 @@
                 $MESSAGES$
             </div>
             
-            <form action="/j_eval" method="post">
-                <input type="text" name="expression" placeholder="Enter J expression (try '~5' or 'help')" required>
-                <button type="submit">Evaluate</button>
+            <form action="/j_eval" method="post" id="j-form">
+                <input type="text" id="expression-input" name="expression" placeholder="Use buttons below to enter expressions" readonly>
+                
+                <!-- Verb pad for J operations -->
+                <div class="verb-pad">
+                    <button type="button" class="btn btn-verb" data-value="+">+</button>
+                    <button type="button" class="btn btn-verb" data-value="{">{ (from)</button>
+                    <button type="button" class="btn btn-verb" data-value="~">~ (iota)</button>
+                    <button type="button" class="btn btn-verb" data-value="<">< (box)</button>
+                    <button type="button" class="btn btn-verb" data-value="#"># (shape)</button>
+                    <button type="button" class="btn btn-verb" data-value=",">, (cat)</button>
+                    <button type="button" class="btn btn-control" data-value="help">help</button>
+                    <button type="button" class="btn btn-clear" id="clear-btn">Clear</button>
+                    <button type="button" class="btn btn-control" data-value=" ">Space</button>
+                </div>
+                
+                <!-- Calculator pad for numbers -->
+                <div class="calculator">
+                    <button type="button" class="btn btn-number" data-value="7">7</button>
+                    <button type="button" class="btn btn-number" data-value="8">8</button>
+                    <button type="button" class="btn btn-number" data-value="9">9</button>
+                    <button type="button" class="btn btn-control" data-value="←">←</button>
+                    
+                    <button type="button" class="btn btn-number" data-value="4">4</button>
+                    <button type="button" class="btn btn-number" data-value="5">5</button>
+                    <button type="button" class="btn btn-number" data-value="6">6</button>
+                    <button type="button" class="btn btn-space" data-value=" ">Space</button>
+                    
+                    <button type="button" class="btn btn-number" data-value="1">1</button>
+                    <button type="button" class="btn btn-number" data-value="2">2</button>
+                    <button type="button" class="btn btn-number" data-value="3">3</button>
+                    <button type="button" class="btn btn-eval" id="eval-btn">Evaluate</button>
+                    
+                    <button type="button" class="btn btn-number" data-value="0">0</button>
+                </div>
             </form>
             
             <div class="help-text">
-                Try <code>~5</code> to generate integers from 0 to 4, or type <code>help</code> for more commands.
+                Use the buttons above to enter J expressions.
+                Try <code>~5</code> to generate integers from 0 to 4, <code>2 + 3</code> for addition, or <code>help</code> for more commands.
             </div>
         </div>
     </div>
@@ -133,38 +215,76 @@
         }
         
         // Scroll to bottom when page loads
-        window.onload = scrollToBottom;
+        window.onload = function() {
+            scrollToBottom();
+            setupCalculator();
+        };
         
-        // Simple JavaScript to manage form submission
-        document.querySelector('form').addEventListener('submit', function(e) {
-            e.preventDefault();
+        function setupCalculator() {
+            const input = document.getElementById('expression-input');
+            const form = document.getElementById('j-form');
+            const buttons = document.querySelectorAll('.btn');
+            const evalBtn = document.getElementById('eval-btn');
+            const clearBtn = document.getElementById('clear-btn');
             
-            const input = this.querySelector('input[name="expression"]');
-            const expression = input.value.trim();
-            
-            if (expression) {
-                fetch('/j_eval', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: 'expression=' + encodeURIComponent(expression)
-                })
-                .then(response => response.text())
-                .then(html => {
-                    // Replace the entire page with the new content
-                    document.documentElement.innerHTML = html;
-                    // Scroll to bottom after content is updated
-                    setTimeout(scrollToBottom, 100);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
+            // Add click handlers to all buttons
+            buttons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const value = this.getAttribute('data-value');
+                    
+                    if (value === '←') {
+                        // Backspace - remove the last character
+                        input.value = input.value.slice(0, -1);
+                    } else {
+                        // Add the button value to the input
+                        input.value += value;
+                    }
                 });
-                
-                // Clear the input field
+            });
+            
+            // Clear button handler
+            clearBtn.addEventListener('click', function() {
                 input.value = '';
-            }
-        });
+            });
+            
+            // Evaluate button handler
+            evalBtn.addEventListener('click', function() {
+                if (input.value.trim()) {
+                    submitExpression(input.value);
+                }
+            });
+            
+            // Form submission handler
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                if (input.value.trim()) {
+                    submitExpression(input.value);
+                }
+            });
+        }
+        
+        function submitExpression(expression) {
+            fetch('/j_eval', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'expression=' + encodeURIComponent(expression)
+            })
+            .then(response => response.text())
+            .then(html => {
+                // Replace the entire page with the new content
+                document.documentElement.innerHTML = html;
+                // Set up the calculator again after page refresh
+                setTimeout(function() {
+                    scrollToBottom();
+                    setupCalculator();
+                }, 100);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
     </script>
 </body>
 </html>
