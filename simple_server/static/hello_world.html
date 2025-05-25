@@ -8,20 +8,110 @@
         body {
             font-family: Arial, sans-serif;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
+            padding: 20px;
             background-color: #f0f0f0;
         }
         h1 {
             font-size: 2rem;
             color: #333;
             text-align: center;
+            margin-bottom: 30px;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .messages {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            min-height: 100px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .message {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+        input[type="text"] {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #3367d6;
         }
     </style>
 </head>
 <body>
     <h1>Hello, world!</h1>
+    
+    <div class="container">
+        <div class="messages" id="messages">
+            <!-- Messages will be displayed here -->
+            $MESSAGES$
+        </div>
+        
+        <form action="/submit" method="post">
+            <input type="text" name="message" placeholder="Enter a message..." required>
+            <button type="submit">Submit</button>
+        </form>
+    </div>
+
+    <script>
+        // Simple JavaScript to manage form submission
+        document.querySelector('form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const input = this.querySelector('input[name="message"]');
+            const message = input.value.trim();
+            
+            if (message) {
+                fetch('/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'message=' + encodeURIComponent(message)
+                })
+                .then(response => response.text())
+                .then(html => {
+                    // Replace the entire page with the new content
+                    document.documentElement.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+                
+                // Clear the input field
+                input.value = '';
+            }
+        });
+    </script>
 </body>
 </html>
