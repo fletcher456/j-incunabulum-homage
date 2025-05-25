@@ -1,393 +1,429 @@
 use std::ffi::{CStr, CString};
-use std::os::raw::{c_char, c_double};
-use std::ptr;
-use std::collections::VecDeque;
-use std::fmt;
+use std::os::raw::c_char;
+use libc::{malloc, strlen};
 
-/// Represents a J array with values and metadata
-#[derive(Debug, Clone)]
-pub struct JArray {
-    values: Vec<f64>,
-    rank: usize,
-    shape: Vec<usize>,
+// Direct translations of C types
+pub type C = i8;  // char in C
+pub type I = i64; // long in C
+
+// Direct translation of struct a
+#[repr(C)]
+pub struct a {
+    pub t: I,
+    pub r: I,
+    pub d: [I; 3],
+    pub p: [I; 2],
 }
 
-impl JArray {
-    /// Create a new array with given shape and filled with zeros
-    fn new(shape: Vec<usize>) -> Self {
-        let size = shape.iter().product::<usize>();
-        JArray {
-            values: vec![0.0; size],
-            rank: shape.len(),
-            shape,
-        }
-    }
+// Type A is a pointer to struct a
+pub type A = *mut a;
 
-    /// Create a scalar (rank 0) array with a single value
-    fn scalar(value: f64) -> Self {
-        JArray {
-            values: vec![value],
-            rank: 0,
-            shape: vec![],
-        }
-    }
+// Macros translated to functions or inline code
 
-    /// Create a vector (rank 1) array from a slice of values
-    fn vector(values: Vec<f64>) -> Self {
-        let length = values.len();
-        JArray {
-            values,
-            rank: 1,
-            shape: vec![length],
-        }
+// Helper function for DO macro: executes the closure n times with index i
+#[inline]
+unsafe fn do_loop<F>(n: I, mut func: F) where F: FnMut(I) {
+    let mut i: I = 0;
+    let _n = n;
+    while i < _n {
+        func(i);
+        i += 1;
     }
+}
 
-    /// Create an iota array (0..n)
-    fn iota(n: usize) -> Self {
-        let values: Vec<f64> = (0..n).map(|i| i as f64).collect();
-        JArray {
-            values,
-            rank: 1,
-            shape: vec![n],
+// Memory allocation - equivalent to ma(n) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn ma(n: I) -> *mut I {
+    malloc((n * 4) as usize) as *mut I
+}
+
+// Memory copy - equivalent to mv(d,s,n) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn mv(d: *mut I, s: *mut I, n: I) {
+    do_loop(n, |i| {
+        *d.offset(i as isize) = *s.offset(i as isize);
+    });
+}
+
+// Calculate total size - equivalent to tr(r,d) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn tr(r: I, d: *mut I) -> I {
+    let mut z: I = 1;
+    do_loop(r, |i| {
+        z = z * *d.offset(i as isize);
+    });
+    z
+}
+
+// Create array - equivalent to ga(t,r,d) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn ga(t: I, r: I, d: *mut I) -> A {
+    let z = ma(5 + tr(r, d)) as A;
+    (*z).t = t;
+    (*z).r = r;
+    mv((*z).d.as_mut_ptr(), d, r);
+    z
+}
+
+// Iota function - equivalent to iota(w) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn iota(w: A) -> A {
+    let mut n = *(*w).p.as_ptr();
+    let z = ga(0, 1, &mut n);
+    do_loop(n, |i| {
+        *(*z).p.as_mut_ptr().offset(i as isize) = i;
+    });
+    z
+}
+
+// Plus function - equivalent to plus(a,w) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn plus(a_ptr: A, w: A) -> A {
+    let r = (*w).r;
+    let d = (*w).d.as_mut_ptr();
+    let n = tr(r, d);
+    let z = ga(0, r, d);
+    do_loop(n, |i| {
+        *(*z).p.as_mut_ptr().offset(i as isize) = 
+            *(*a_ptr).p.as_mut_ptr().offset(i as isize) + 
+            *(*w).p.as_mut_ptr().offset(i as isize);
+    });
+    z
+}
+
+// From function - equivalent to from(a,w) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn from(a_ptr: A, w: A) -> A {
+    let r = (*w).r - 1;
+    let d = (*w).d.as_mut_ptr().offset(1);
+    let n = tr(r, d);
+    let z = ga((*w).t, r, d);
+    mv(
+        (*z).p.as_mut_ptr(), 
+        (*w).p.as_mut_ptr().offset((n * *(*a_ptr).p.as_ptr()) as isize),
+        n
+    );
+    z
+}
+
+// Box function - equivalent to box(w) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn box_func(w: A) -> A {
+    let z = ga(1, 0, std::ptr::null_mut());
+    *(*z).p.as_mut_ptr() = w as I;
+    z
+}
+
+// Cat function - equivalent to cat(a,w) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn cat(a_ptr: A, w: A) -> A {
+    let an = tr((*a_ptr).r, (*a_ptr).d.as_mut_ptr());
+    let wn = tr((*w).r, (*w).d.as_mut_ptr());
+    let mut n = an + wn;
+    let z = ga((*w).t, 1, &mut n);
+    mv((*z).p.as_mut_ptr(), (*a_ptr).p.as_mut_ptr(), an);
+    mv((*z).p.as_mut_ptr().offset(an as isize), (*w).p.as_mut_ptr(), wn);
+    z
+}
+
+// Find function - empty placeholder as in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn find(_a: A, _w: A) -> A {
+    std::ptr::null_mut()
+}
+
+// Reshape function - equivalent to rsh(a,w) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn rsh(a_ptr: A, w: A) -> A {
+    let r = if (*a_ptr).r > 0 { *(*a_ptr).d.as_ptr() } else { 1 };
+    let n = tr(r, (*a_ptr).p.as_mut_ptr());
+    let wn = tr((*w).r, (*w).d.as_mut_ptr());
+    let z = ga((*w).t, r, (*a_ptr).p.as_mut_ptr());
+    let wn_adjusted = if n > wn { wn } else { n };
+    mv((*z).p.as_mut_ptr(), (*w).p.as_mut_ptr(), wn_adjusted);
+    let remaining = n - wn_adjusted;
+    if remaining > 0 {
+        mv(
+            (*z).p.as_mut_ptr().offset(wn_adjusted as isize),
+            (*z).p.as_mut_ptr(),
+            remaining
+        );
+    }
+    z
+}
+
+// Shape function - equivalent to sha(w) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn sha(w: A) -> A {
+    let z = ga(0, 1, &mut (*w).r);
+    mv((*z).p.as_mut_ptr(), (*w).d.as_mut_ptr(), (*w).r);
+    z
+}
+
+// Identity function - equivalent to id(w) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn id(w: A) -> A {
+    w
+}
+
+// Size function - equivalent to size(w) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn size(w: A) -> A {
+    let z = ga(0, 0, std::ptr::null_mut());
+    *(*z).p.as_mut_ptr() = if (*w).r > 0 { *(*w).d.as_ptr() } else { 1 };
+    z
+}
+
+// Print integer - equivalent to pi(i) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn pi(i: I) {
+    print!("{} ", i);
+}
+
+// Print newline - equivalent to nl() in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn nl() {
+    println!();
+}
+
+// Print array - equivalent to pr(w) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn pr(w: A) {
+    let r = (*w).r;
+    let d = (*w).d.as_mut_ptr();
+    let n = tr(r, d);
+    do_loop(r, |i| {
+        pi(*d.offset(i as isize));
+    });
+    nl();
+    
+    if (*w).t != 0 {
+        do_loop(n, |i| {
+            print!("< ");
+            pr(*(*w).p.as_mut_ptr().offset(i as isize) as A);
+        });
+    } else {
+        do_loop(n, |i| {
+            pi(*(*w).p.as_mut_ptr().offset(i as isize));
+        });
+    }
+    nl();
+}
+
+// Verb table - equivalent to vt[] in the fragment
+static mut VT: [C; 7] = [b'+' as C, b'{' as C, b'~' as C, b'<' as C, b'#' as C, b',' as C, 0];
+
+// Function pointers arrays - we need to define these properly
+// We'll populate these in the initialization code
+static mut VD: [Option<unsafe extern "C" fn(A, A) -> A>; 7] = [None; 7];
+static mut VM: [Option<unsafe extern "C" fn(A) -> A>; 7] = [None; 7];
+
+// Symbol table - equivalent to st[] in the fragment
+static mut ST: [I; 26] = [0; 26];
+
+// Check if character is a variable name - equivalent to qp(a) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn qp(a: I) -> I {
+    if a >= 'a' as I && a <= 'z' as I { 1 } else { 0 }
+}
+
+// Check if character is a verb - equivalent to qv(a) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn qv(a: I) -> I {
+    if a < 'a' as I { 1 } else { 0 }
+}
+
+// Execute expression - equivalent to ex(e) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn ex(e: *mut I) -> A {
+    let mut a = *e;
+    
+    if qp(a) != 0 {
+        if *e.offset(1) == '=' as I {
+            ST[(a - 'a' as I) as usize] = ex(e.offset(2)) as I;
+            return ST[(a - 'a' as I) as usize] as A;
         }
+        a = ST[(a - 'a' as I) as usize];
     }
     
-    /// Add a scalar to each element of this array
-    fn add_scalar(&self, scalar: f64) -> Self {
-        let new_values = self.values.iter().map(|&x| x + scalar).collect();
-        JArray {
-            values: new_values,
-            rank: self.rank,
-            shape: self.shape.clone(),
-        }
+    if qv(a) != 0 {
+        let vm_fn = VM[a as usize].unwrap();
+        return vm_fn(ex(e.offset(1)));
+    } else if *e.offset(1) != 0 {
+        let vd_fn = VD[*e.offset(1) as usize].unwrap();
+        return vd_fn(a as A, ex(e.offset(2)));
+    } else {
+        return a as A;
+    }
+}
+
+// Parse noun - equivalent to noun(c) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn noun(c: C) -> A {
+    if c < '0' as C || c > '9' as C {
+        return std::ptr::null_mut();
     }
     
-    /// Multiply each element of this array by a scalar
-    fn multiply_scalar(&self, scalar: f64) -> Self {
-        let new_values = self.values.iter().map(|&x| x * scalar).collect();
-        JArray {
-            values: new_values,
-            rank: self.rank,
-            shape: self.shape.clone(),
+    let z = ga(0, 0, std::ptr::null_mut());
+    *(*z).p.as_mut_ptr() = c as I - '0' as I;
+    z
+}
+
+// Parse verb - equivalent to verb(c) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn verb(c: C) -> I {
+    let mut i: I = 0;
+    while VT[i as usize] != 0 {
+        if VT[i as usize] == c {
+            return i + 1;
         }
+        i += 1;
     }
+    0
+}
+
+// Parse words - equivalent to wd(s) in the fragment
+#[no_mangle]
+pub unsafe extern "C" fn wd(s: *const C) -> *mut I {
+    let n = strlen(s as *const i8) as I;
+    let e = ma(n + 1);
     
-    /// Subtract a scalar from each element of this array
-    fn subtract_scalar(&self, scalar: f64) -> Self {
-        let new_values = self.values.iter().map(|&x| x - scalar).collect();
-        JArray {
-            values: new_values,
-            rank: self.rank,
-            shape: self.shape.clone(),
-        }
-    }
-    
-    /// Divide each element of this array by a scalar
-    fn divide_scalar(&self, scalar: f64) -> Result<Self, String> {
-        if scalar == 0.0 {
-            return Err("Division by zero".to_string());
-        }
-        
-        let new_values = self.values.iter().map(|&x| x / scalar).collect();
-        Ok(JArray {
-            values: new_values,
-            rank: self.rank,
-            shape: self.shape.clone(),
-        })
-    }
-    
-    /// Concatenate two arrays (assuming they have the same rank)
-    fn concatenate(&self, other: &JArray) -> Result<Self, String> {
-        if self.rank != other.rank {
-            return Err("Cannot concatenate arrays with different ranks".to_string());
-        }
-        
-        if self.rank == 0 {
-            // For scalars, create a vector
-            return Ok(JArray::vector(vec![self.values[0], other.values[0]]));
-        }
-        
-        // For now, only implement for vectors (rank 1)
-        if self.rank == 1 {
-            let mut new_values = self.values.clone();
-            new_values.extend(other.values.clone());
-            
-            let new_shape = vec![new_values.len()];
-            
-            return Ok(JArray {
-                values: new_values,
-                rank: 1,
-                shape: new_shape,
-            });
-        }
-        
-        Err("Concatenation only implemented for vectors".to_string())
-    }
-    
-    /// Get string representation of this array
-    fn to_string(&self) -> String {
-        if self.rank == 0 {
-            // Scalar
-            format!("{:.8}", self.values[0])
-        } else if self.rank == 1 {
-            // Vector
-            let elements: Vec<String> = self.values.iter()
-                .map(|&x| format!("{:.8}", x))
-                .collect();
-            
-            format!("[{}]", elements.join(" "))
+    do_loop(n, |i| {
+        let c = *s.offset(i as isize);
+        let a_noun = noun(c);
+        if !a_noun.is_null() {
+            *e.offset(i as isize) = a_noun as I;
         } else {
-            // Higher-rank arrays - simplified for now
-            format!("Array with shape {:?}", self.shape)
+            let a_verb = verb(c);
+            if a_verb != 0 {
+                *e.offset(i as isize) = a_verb;
+            } else {
+                *e.offset(i as isize) = c as I;
+            }
         }
+    });
+    
+    *e.offset(n as isize) = 0;
+    e
+}
+
+// Initialize the function pointer arrays
+fn init_function_tables() {
+    unsafe {
+        VD[0] = None;
+        VD[1] = Some(plus);
+        VD[2] = Some(from);
+        VD[3] = Some(find);
+        VD[4] = None;
+        VD[5] = Some(rsh);
+        VD[6] = Some(cat);
+        
+        VM[0] = None;
+        VM[1] = Some(id);
+        VM[2] = Some(size);
+        VM[3] = Some(iota);
+        VM[4] = Some(box_func);
+        VM[5] = Some(sha);
+        VM[6] = None;
     }
 }
 
-/// Represents a token in J syntax
-#[derive(Debug, Clone, PartialEq)]
-enum Token {
-    Number(f64),
-    Operator(char),
-    Identifier(String),
-    Space,
+// Custom print implementation that writes to a string buffer
+pub struct StringPrinter {
+    buffer: String,
 }
 
-/// Simple J parser and interpreter
-struct JInterpreter {
-    tokens: VecDeque<Token>,
-}
-
-impl JInterpreter {
-    /// Create a new interpreter for the given input
-    fn new(input: &str) -> Self {
-        JInterpreter {
-            tokens: JInterpreter::tokenize(input),
+impl StringPrinter {
+    pub fn new() -> Self {
+        StringPrinter {
+            buffer: String::new(),
         }
     }
     
-    /// Tokenize a string into J tokens
-    fn tokenize(input: &str) -> VecDeque<Token> {
-        let mut tokens = VecDeque::new();
-        let mut chars = input.chars().peekable();
-        
-        while let Some(&c) = chars.peek() {
-            match c {
-                '0'..='9' | '.' => {
-                    // Parse a number
-                    let mut number = String::new();
-                    
-                    while let Some(&c) = chars.peek() {
-                        if c.is_digit(10) || c == '.' || c == 'e' || c == 'E' || c == '-' && !number.is_empty() {
-                            number.push(c);
-                            chars.next();
-                        } else {
-                            break;
-                        }
-                    }
-                    
-                    if let Ok(value) = number.parse::<f64>() {
-                        tokens.push_back(Token::Number(value));
-                    }
-                },
-                'a'..='z' | 'A'..='Z' => {
-                    // Parse an identifier
-                    let mut ident = String::new();
-                    
-                    while let Some(&c) = chars.peek() {
-                        if c.is_alphabetic() || c == '.' {
-                            ident.push(c);
-                            chars.next();
-                        } else {
-                            break;
-                        }
-                    }
-                    
-                    tokens.push_back(Token::Identifier(ident));
-                },
-                '+' | '-' | '*' | '/' | '%' | '^' => {
-                    // Parse an operator
-                    tokens.push_back(Token::Operator(c));
-                    chars.next();
-                },
-                ' ' | '\t' => {
-                    // Parse whitespace
-                    tokens.push_back(Token::Space);
-                    chars.next();
-                    
-                    // Skip additional whitespace
-                    while let Some(&c) = chars.peek() {
-                        if c == ' ' || c == '\t' {
-                            chars.next();
-                        } else {
-                            break;
-                        }
-                    }
-                },
-                _ => {
-                    // Skip other characters
-                    chars.next();
-                }
-            }
-        }
-        
-        tokens
+    pub fn print(&mut self, s: &str) {
+        self.buffer.push_str(s);
     }
     
-    /// Interpret the J expression and return the result
-    fn interpret(&mut self) -> Result<JArray, String> {
-        // Check for iota first (special case)
-        if self.tokens.len() >= 2 {
-            if let Some(Token::Identifier(id)) = self.tokens.get(0) {
-                if id == "i" {
-                    if let Some(Token::Operator(op)) = self.tokens.get(1) {
-                        if *op == '.' {
-                            // Handle i.n (iota)
-                            self.tokens.pop_front(); // Remove i
-                            self.tokens.pop_front(); // Remove .
-                            
-                            if let Some(Token::Number(n)) = self.tokens.pop_front() {
-                                if n >= 0.0 && n < 1000.0 {
-                                    return Ok(JArray::iota(n as usize));
-                                } else {
-                                    return Err("Invalid iota size".to_string());
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Parse array with possible operation
-        self.parse_expression()
+    pub fn println(&mut self, s: &str) {
+        self.buffer.push_str(s);
+        self.buffer.push('\n');
     }
     
-    /// Parse a basic expression (number or array with possible operation)
-    fn parse_expression(&mut self) -> Result<JArray, String> {
-        if self.tokens.is_empty() {
-            return Err("Empty expression".to_string());
-        }
-        
-        // Check for array expression (space-separated numbers)
-        let has_spaces = self.tokens.iter().any(|t| *t == Token::Space);
-        
-        if has_spaces {
-            // Parse as array
-            let mut values = Vec::new();
-            
-            while !self.tokens.is_empty() {
-                match self.tokens.front() {
-                    Some(Token::Number(n)) => {
-                        values.push(*n);
-                        self.tokens.pop_front();
-                    },
-                    Some(Token::Space) => {
-                        self.tokens.pop_front();
-                    },
-                    Some(Token::Operator(_)) => {
-                        break;
-                    },
-                    _ => {
-                        return Err("Invalid array syntax".to_string());
-                    }
-                }
-            }
-            
-            let array = JArray::vector(values);
-            
-            // Check for an operation on the array
-            if !self.tokens.is_empty() {
-                if let Some(Token::Operator(op)) = self.tokens.pop_front() {
-                    if let Some(Token::Number(n)) = self.tokens.pop_front() {
-                        // Apply the operation
-                        return match op {
-                            '+' => Ok(array.add_scalar(n)),
-                            '-' => Ok(array.subtract_scalar(n)),
-                            '*' => Ok(array.multiply_scalar(n)),
-                            '/' => array.divide_scalar(n),
-                            _ => Err(format!("Unsupported array operation: {}", op)),
-                        };
-                    }
-                }
-            }
-            
-            return Ok(array);
-        }
-        
-        // Simple expression (e.g., 2+3)
-        if let Some(Token::Number(left)) = self.tokens.pop_front() {
-            if !self.tokens.is_empty() {
-                if let Some(Token::Operator(op)) = self.tokens.pop_front() {
-                    if let Some(Token::Number(right)) = self.tokens.pop_front() {
-                        // Compute the result
-                        let result = match op {
-                            '+' => left + right,
-                            '-' => left - right,
-                            '*' => left * right,
-                            '/' => {
-                                if right == 0.0 {
-                                    return Err("Division by zero".to_string());
-                                }
-                                left / right
-                            },
-                            '^' => left.powf(right),
-                            _ => return Err(format!("Unsupported operation: {}", op)),
-                        };
-                        
-                        return Ok(JArray::scalar(result));
-                    }
-                }
-            }
-            
-            // Just a single number
-            return Ok(JArray::scalar(left));
-        }
-        
-        Err("Invalid expression".to_string())
+    pub fn get_buffer(&self) -> &str {
+        &self.buffer
     }
 }
 
-/// C-compatible function to interpret J code
-///
-/// # Safety
-///
-/// This function takes a raw C string pointer and returns a new C string pointer.
-/// The caller is responsible for freeing the returned string with free_string().
+// Override print functions to use our custom printer
+#[no_mangle]
+pub unsafe extern "C" fn pi_custom(i: I, printer: &mut StringPrinter) {
+    printer.print(&format!("{} ", i));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn nl_custom(printer: &mut StringPrinter) {
+    printer.println("");
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn pr_custom(w: A, printer: &mut StringPrinter) {
+    let r = (*w).r;
+    let d = (*w).d.as_mut_ptr();
+    let n = tr(r, d);
+    
+    do_loop(r, |i| {
+        pi_custom(*d.offset(i as isize), printer);
+    });
+    nl_custom(printer);
+    
+    if (*w).t != 0 {
+        do_loop(n, |i| {
+            printer.print("< ");
+            pr_custom(*(*w).p.as_mut_ptr().offset(i as isize) as A, printer);
+        });
+    } else {
+        do_loop(n, |i| {
+            pi_custom(*(*w).p.as_mut_ptr().offset(i as isize), printer);
+        });
+    }
+    nl_custom(printer);
+}
+
+// Exported function to interpret J code
 #[no_mangle]
 pub unsafe extern "C" fn interpret_j_code(input: *const c_char) -> *mut c_char {
-    // Default error message in case of early failure
-    let default_error = CString::new("Error processing J code").unwrap();
+    // Initialize function tables if not already done
+    init_function_tables();
     
-    // Check for null pointer
-    if input.is_null() {
-        return CString::into_raw(default_error);
+    // Create our custom printer
+    let mut printer = StringPrinter::new();
+    
+    // Convert C string to Rust
+    let c_str = CStr::from_ptr(input);
+    let rust_str = match c_str.to_str() {
+        Ok(s) => s,
+        Err(_) => return CString::new("Error: Invalid input string").unwrap().into_raw(),
+    };
+    
+    // Convert Rust string to char array for C
+    let c_input = rust_str.as_ptr() as *const C;
+    
+    // Execute J code
+    let result = ex(wd(c_input));
+    if !result.is_null() {
+        pr_custom(result, &mut printer);
+    } else {
+        printer.println("Error evaluating J expression");
     }
     
-    // Convert C string to Rust string
-    let c_str = match CStr::from_ptr(input).to_str() {
-        Ok(s) => s,
-        Err(_) => return CString::into_raw(default_error),
-    };
-    
-    // Create interpreter and interpret the code
-    let mut interpreter = JInterpreter::new(c_str);
-    let result = match interpreter.interpret() {
-        Ok(array) => array.to_string(),
-        Err(msg) => format!("Error: {}", msg),
-    };
-    
-    // Convert result to C string
-    match CString::new(result) {
-        Ok(c_string) => c_string.into_raw(),
-        Err(_) => CString::into_raw(default_error),
+    // Convert captured output to C string
+    match CString::new(printer.get_buffer()) {
+        Ok(s) => s.into_raw(),
+        Err(_) => CString::new("Error capturing output").unwrap().into_raw(),
     }
 }
 
-/// Free a string created by interpret_j_code
-///
-/// # Safety
-///
-/// This function must be called with a pointer returned by interpret_j_code.
+// Free a string created by interpret_j_code
 #[no_mangle]
 pub unsafe extern "C" fn free_string(s: *mut c_char) {
     if !s.is_null() {
