@@ -119,12 +119,15 @@ fn serve_html_with_messages(state: &Arc<AppState>) -> Response<std::io::Cursor<V
             if file.read_to_string(&mut contents).is_ok() {
                 // Generate HTML for messages
                 let messages = state.messages.lock().unwrap();
-                let messages_html = messages
-                    .iter()
-                    .rev() // Reverse the order so most recent is at the bottom
-                    .map(|msg| format!("<div class=\"message\">{}</div>", html_escape(msg)))
-                    .collect::<Vec<_>>()
-                    .join("\n");
+                let messages_html = format!(
+                    "<div class=\"message-container\">{}</div>",
+                    messages
+                        .iter()
+                        .rev() // Reverse the order so most recent is at the bottom
+                        .map(|msg| format!("<div class=\"message\">{}</div>", html_escape(msg)))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                );
                 
                 // Replace the placeholder with the messages
                 let contents = contents.replace("$MESSAGES$", &messages_html);
