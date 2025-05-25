@@ -359,6 +359,12 @@ impl JInterpreter {
         
         // By now, we should have a single token that is our result
         if tokens.len() == 1 {
+            // Check for our special array format
+            if tokens[0].starts_with("__ARRAY__") {
+                let array_data = &tokens[0][9..]; // Skip the "__ARRAY__" prefix
+                return self.parse_numeric_vector(array_data);
+            }
+        
             // Try to parse the final result
             if let Ok(n) = tokens[0].parse::<i64>() {
                 return Ok(JArray::new_scalar(n));
