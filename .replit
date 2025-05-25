@@ -35,7 +35,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "gcc -o webserver webserver.c simplified_j.c -lm && ./webserver"
+args = "gcc -o webserver webserver.c j_rust_adapter.c -L./j_rust/target/release -lj_rust -Wl,-rpath,./j_rust/target/release -lm && ./webserver"
 waitForPort = 5000
 
 [deployment]
