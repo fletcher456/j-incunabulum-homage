@@ -335,21 +335,31 @@ impl JInterpreter {
             }
         }
         
-        // Handle monadic verb followed by vector (e.g., "~5" or "~1 2 3")
-        if tokens.len() >= 2 && 
-           matches!(tokens[0], Token::Verb(_)) && 
-           matches!(tokens[1], Token::Number(_)) {
-            
+        // Handle monadic verb patterns
+        if tokens.len() >= 2 && matches!(tokens[0], Token::Verb(_)) {
             let verb = if let Token::Verb(v) = tokens[0] {
                 v
             } else {
                 return Err("Expected verb".to_string());
             };
             
-            // Build a vector for the argument
-            let (arg_vector, _) = self.build_vector(&tokens, 1)?;
+            // Case 1: Verb followed by another verb (compound monadic operation)
+            if matches!(tokens[1], Token::Verb(_)) {
+                // Parse the rest of the tokens as a subexpression
+                let sub_tokens = tokens[1..].to_vec();
+                let sub_expr = self.parse(sub_tokens)?;
+                
+                // Create a monadic verb node with the subexpression as its argument
+                return Ok(JNode::MonadicVerb(verb, Box::new(sub_expr)));
+            }
             
-            return Ok(JNode::MonadicVerb(verb, Box::new(JNode::Literal(arg_vector))));
+            // Case 2: Verb followed by a number or vector
+            if matches!(tokens[1], Token::Number(_)) {
+                // Build a vector for the argument
+                let (arg_vector, _) = self.build_vector(&tokens, 1)?;
+                
+                return Ok(JNode::MonadicVerb(verb, Box::new(JNode::Literal(arg_vector))));
+            }
         }
         
         // For now, we don't handle more complex expressions
