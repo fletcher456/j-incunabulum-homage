@@ -39,4 +39,4 @@ verb(c){I i=0;for(;vt[i];)if(vt[i++]==c)R i;R 0;}
 I *wd(s)C *s;{I a,n=strlen(s),*e=ma(n+1);C c;
  DO(n,e[i]=(a=noun(c=s[i]))?a:(a=verb(c))?a:c);e[n]=0;R e;}
 
-main(){C s[99]; while(gets(s)) pr(ex(wd(s)));}
+main(){C s[99];while(gets(s))pr(ex(wd(s)));}
