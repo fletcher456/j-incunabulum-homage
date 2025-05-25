@@ -1,4 +1,4 @@
-modules = ["c"]
+modules = ["c", "rust"]
 
 [nix]
 channel = "stable-24_05"
