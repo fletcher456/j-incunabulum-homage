@@ -240,18 +240,33 @@ pub unsafe extern "C" fn ex(e: *mut I) -> A {
     
     if qp(a) != 0 {
         if *e.offset(1) == '=' as I {
-            ST[(a - 'a' as I) as usize] = ex(e.offset(2)) as I;
-            return ST[(a - 'a' as I) as usize] as A;
+            let idx = (a - 'a' as I) as usize;
+            if idx < ST.len() {
+                ST[idx] = ex(e.offset(2)) as I;
+                return ST[idx] as A;
+            }
+            return std::ptr::null_mut();
         }
-        a = ST[(a - 'a' as I) as usize];
+        let idx = (a - 'a' as I) as usize;
+        if idx < ST.len() {
+            a = ST[idx];
+        }
     }
     
     if qv(a) != 0 {
-        let vm_fn = VM[a as usize].unwrap();
-        return vm_fn(ex(e.offset(1)));
+        let idx = a as usize;
+        if idx < VM.len() && VM[idx].is_some() {
+            let vm_fn = VM[idx].unwrap();
+            return vm_fn(ex(e.offset(1)));
+        }
+        return std::ptr::null_mut();
     } else if *e.offset(1) != 0 {
-        let vd_fn = VD[*e.offset(1) as usize].unwrap();
-        return vd_fn(a as A, ex(e.offset(2)));
+        let idx = *e.offset(1) as usize;
+        if idx < VD.len() && VD[idx].is_some() {
+            let vd_fn = VD[idx].unwrap();
+            return vd_fn(a as A, ex(e.offset(2)));
+        }
+        return std::ptr::null_mut();
     } else {
         return a as A;
     }
