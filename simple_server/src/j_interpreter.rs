@@ -219,56 +219,124 @@ impl JInterpreter {
         Ok(tokens)
     }
     
+    // Build a vector JArray from consecutive number tokens
+    fn build_vector(&self, tokens: &[Token], start_idx: usize) -> Result<(JArray, usize), String> {
+        let mut values = Vec::new();
+        let mut idx = start_idx;
+        
+        // First token should be a number
+        if idx >= tokens.len() {
+            return Err("Expected number for vector, but found end of input".to_string());
+        }
+        
+        if let Token::Number(n) = tokens[idx] {
+            values.push(n);
+            idx += 1;
+        } else {
+            return Err("Expected number for vector".to_string());
+        }
+        
+        // Look for more numbers separated by spaces
+        while idx + 1 < tokens.len() {
+            if let Token::Space = tokens[idx] {
+                if let Token::Number(n) = tokens[idx + 1] {
+                    values.push(n);
+                    idx += 2; // Skip the space and the number
+                } else {
+                    break; // Not a number after space, end of vector
+                }
+            } else {
+                break; // Not a space, end of vector
+            }
+        }
+        
+        // Create the vector JArray
+        let array = if values.len() == 1 {
+            // Single value, create a scalar
+            JArray::new_scalar(values[0])
+        } else {
+            // Multiple values, create a vector
+            JArray::new_integer(1, vec![values.len()], values)
+        };
+        
+        Ok((array, idx))
+    }
+    
     // Parse tokens into an AST (right to left)
     fn parse(&self, tokens: Vec<Token>) -> Result<JNode, String> {
         if tokens.is_empty() {
             return Err("Empty expression".to_string());
         }
         
-        // Create a simple parser for basic expressions
-        // This is a simplified parser that handles only specific patterns
-        
-        // Special case for numeric literals
+        // Special case for a single number token
         if tokens.len() == 1 {
             if let Token::Number(n) = tokens[0] {
                 return Ok(JNode::Literal(JArray::new_scalar(n)));
             }
         }
         
-        // Handle "1+~5" pattern (scalar + monadic verb applied to scalar)
-        if tokens.len() == 3 && 
-           matches!(tokens[0], Token::Number(_)) && 
-           matches!(tokens[1], Token::Verb('+')) && 
-           matches!(tokens[2], Token::Verb('~')) {
+        // Handle vectors (space-separated numbers)
+        if let Token::Number(_) = tokens[0] {
+            // Try to parse a vector starting at index 0
+            let (vector, end_idx) = self.build_vector(&tokens, 0)?;
             
-            // Get the left operand (scalar)
-            let left_value = if let Token::Number(n) = tokens[0] {
-                n
-            } else {
-                return Err("Expected number as left operand".to_string());
-            };
-            
-            // Get the next token which should be a number
-            if tokens.len() <= 3 {
-                return Err("Expected a number after ~".to_string());
+            // If we consumed all tokens, return the vector literal
+            if end_idx >= tokens.len() {
+                return Ok(JNode::Literal(vector));
             }
             
-            // Create a pattern for ~5 (assuming a 4th token exists)
-            if tokens.len() >= 4 {
-                if let Token::Number(n) = tokens[3] {
-                    // Build the AST from right to left
-                    // First ~5
-                    let right_expr = JNode::MonadicVerb('~', Box::new(JNode::Literal(JArray::new_scalar(n))));
-                    // Then 1+<result of ~5>
-                    return Ok(JNode::DyadicVerb('+', 
-                                           Box::new(JNode::Literal(JArray::new_scalar(left_value))),
+            // If the next token is a verb, we have a dyadic operation
+            if end_idx < tokens.len() && matches!(tokens[end_idx], Token::Verb(_)) {
+                let verb = if let Token::Verb(v) = tokens[end_idx] {
+                    v
+                } else {
+                    return Err("Expected verb after vector".to_string());
+                };
+                
+                // Try to parse the right operand
+                if end_idx + 1 >= tokens.len() {
+                    return Err("Expected right operand after verb".to_string());
+                }
+                
+                // If the right operand starts with a verb, it's a monadic operation
+                if matches!(tokens[end_idx + 1], Token::Verb(_)) {
+                    let right_verb = if let Token::Verb(v) = tokens[end_idx + 1] {
+                        v
+                    } else {
+                        return Err("Expected verb for right operand".to_string());
+                    };
+                    
+                    // Parse the argument to the monadic verb
+                    if end_idx + 2 >= tokens.len() {
+                        return Err("Expected argument for monadic verb".to_string());
+                    }
+                    
+                    // Build a vector for the argument
+                    let (arg_vector, _) = self.build_vector(&tokens, end_idx + 2)?;
+                    
+                    // Create the AST for the monadic operation
+                    let right_expr = JNode::MonadicVerb(right_verb, Box::new(JNode::Literal(arg_vector)));
+                    
+                    // Create the AST for the dyadic operation
+                    return Ok(JNode::DyadicVerb(verb,
+                                           Box::new(JNode::Literal(vector)),
                                            Box::new(right_expr)));
+                } else if matches!(tokens[end_idx + 1], Token::Number(_)) {
+                    // If the right operand starts with a number, it's a vector
+                    let (right_vector, _) = self.build_vector(&tokens, end_idx + 1)?;
+                    
+                    // Create the AST for the dyadic operation
+                    return Ok(JNode::DyadicVerb(verb,
+                                           Box::new(JNode::Literal(vector)),
+                                           Box::new(JNode::Literal(right_vector))));
+                } else {
+                    return Err("Unexpected token for right operand".to_string());
                 }
             }
         }
         
-        // Handle monadic verb followed by scalar (e.g., "~5")
-        if tokens.len() == 2 && 
+        // Handle monadic verb followed by vector (e.g., "~5" or "~1 2 3")
+        if tokens.len() >= 2 && 
            matches!(tokens[0], Token::Verb(_)) && 
            matches!(tokens[1], Token::Number(_)) {
             
@@ -278,42 +346,10 @@ impl JInterpreter {
                 return Err("Expected verb".to_string());
             };
             
-            let value = if let Token::Number(n) = tokens[1] {
-                n
-            } else {
-                return Err("Expected number".to_string());
-            };
+            // Build a vector for the argument
+            let (arg_vector, _) = self.build_vector(&tokens, 1)?;
             
-            return Ok(JNode::MonadicVerb(verb, Box::new(JNode::Literal(JArray::new_scalar(value)))));
-        }
-        
-        // Handle dyadic verb with two scalars (e.g., "1+2")
-        if tokens.len() == 3 && 
-           matches!(tokens[0], Token::Number(_)) && 
-           matches!(tokens[1], Token::Verb(_)) && 
-           matches!(tokens[2], Token::Number(_)) {
-            
-            let left_value = if let Token::Number(n) = tokens[0] {
-                n
-            } else {
-                return Err("Expected number as left operand".to_string());
-            };
-            
-            let verb = if let Token::Verb(v) = tokens[1] {
-                v
-            } else {
-                return Err("Expected verb".to_string());
-            };
-            
-            let right_value = if let Token::Number(n) = tokens[2] {
-                n
-            } else {
-                return Err("Expected number as right operand".to_string());
-            };
-            
-            return Ok(JNode::DyadicVerb(verb,
-                                   Box::new(JNode::Literal(JArray::new_scalar(left_value))),
-                                   Box::new(JNode::Literal(JArray::new_scalar(right_value)))));
+            return Ok(JNode::MonadicVerb(verb, Box::new(JNode::Literal(arg_vector))));
         }
         
         // For now, we don't handle more complex expressions
