@@ -20,6 +20,14 @@ args = "C Webserver"
 task = "workflow.run"
 args = "J_Interpreter_Web"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "simple_server"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "hello_world_server"
+
 [[workflows.workflow]]
 name = "C Webserver"
 author = "agent"
@@ -36,6 +44,24 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd j_web_repl && cargo run"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "simple_server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd simple_server && cargo run"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "hello_world_server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd simple_server && cargo run"
 waitForPort = 5000
 
 [deployment]
