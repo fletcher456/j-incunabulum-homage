@@ -1,0 +1,44 @@
+modules = ["c"]
+
+[nix]
+channel = "stable-24_05"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "C Webserver"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "run_webserver"
+
+[[workflows.workflow]]
+name = "C Webserver"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "gcc webserver.c -o webserver && ./webserver"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "run_webserver"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "gcc -o webserver webserver.c && ./webserver"
+
+[deployment]
+run = ["sh", "-c", "gcc webserver.c -o webserver && ./webserver"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80
