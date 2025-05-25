@@ -5,9 +5,14 @@ use std::sync::{Arc, Mutex};
 use tiny_http::{Server, Response, Header, Method, Request};
 use std::collections::VecDeque;
 
-// Store messages in a thread-safe container
+// Import our J interpreter module
+mod j_interpreter;
+use j_interpreter::{JInterpreter, format_result};
+
+// Store messages and J interpreter state in a thread-safe container
 struct AppState {
     messages: Mutex<VecDeque<String>>,
+    j_interpreter: JInterpreter,
 }
 
 fn main() {
@@ -16,9 +21,10 @@ fn main() {
     println!("Server running at http://0.0.0.0:5000");
     println!("Visit http://0.0.0.0:5000 in your browser");
 
-    // Create shared state to store messages
+    // Create shared state with J interpreter
     let state = Arc::new(AppState {
         messages: Mutex::new(VecDeque::new()),
+        j_interpreter: JInterpreter::new(),
     });
 
     // Handle incoming requests
@@ -29,8 +35,55 @@ fn main() {
         let url = request.url().to_string();
         
         let response = match (method, url.as_str()) {
+            // J REPL evaluation endpoint
+            (Method::Post, "/j_eval") => {
+                // Read the POST body
+                let content_length = request
+                    .headers()
+                    .iter()
+                    .find(|h| h.field.equiv("Content-Length"))
+                    .and_then(|h| h.value.as_str().parse::<usize>().ok())
+                    .unwrap_or(0);
+                
+                let mut buffer = vec![0; content_length];
+                if let Ok(_) = request.as_reader().read_exact(&mut buffer) {
+                    // Parse the form data
+                    let body = String::from_utf8_lossy(&buffer);
+                    if let Some(expression) = body.strip_prefix("expression=") {
+                        // URL decode the J expression
+                        let expression = url_decode(expression);
+                        
+                        // Add the input to message history
+                        let mut messages = state.messages.lock().unwrap();
+                        messages.push_front(format!("<div class=\"message input\">> {}</div>", html_escape(&expression)));
+                        
+                        // Evaluate the J expression
+                        let result = state.j_interpreter.execute(&expression);
+                        let formatted_result = format_result(result);
+                        
+                        // Check if it's an error
+                        let result_class = if formatted_result.starts_with("Error") {
+                            "error"
+                        } else {
+                            "output"
+                        };
+                        
+                        // Add the result to message history
+                        messages.push_front(format!("<div class=\"message {}\">  {}</div>", result_class, html_escape(&formatted_result)));
+                        
+                        // Keep only the last 20 messages (10 input/output pairs)
+                        while messages.len() > 20 {
+                            messages.pop_back();
+                        }
+                    }
+                }
+                
+                // Serve the J REPL page with updated content
+                serve_j_repl_with_messages(&state)
+            },
+            // Original message submission (kept for backward compatibility)
             (Method::Post, "/submit") => {
-                // We need to read the body for POST requests
+                // Read the POST body
                 let content_length = request
                     .headers()
                     .iter()
@@ -48,7 +101,7 @@ fn main() {
                         
                         // Add to message queue
                         let mut messages = state.messages.lock().unwrap();
-                        messages.push_front(message);
+                        messages.push_front(format!("<div class=\"message\">{}</div>", html_escape(&message)));
                         
                         // Keep only the last 10 messages
                         while messages.len() > 10 {
@@ -57,11 +110,16 @@ fn main() {
                     }
                 }
                 
-                // Redirect back to the main page
+                // Redirect to the J REPL page
                 let header = Header::from_bytes("Location", "/").unwrap();
                 Response::from_string("").with_status_code(303).with_header(header)
             },
-            (Method::Get, "/") | (Method::Get, "/hello_world.html") => {
+            (Method::Get, "/") => {
+                // Default to J REPL interface
+                serve_j_repl_with_messages(&state)
+            },
+            (Method::Get, "/hello_world.html") => {
+                // Original chat interface (kept for backward compatibility)
                 serve_html_with_messages(&state)
             },
             _ => {
@@ -111,7 +169,38 @@ fn url_decode(input: &str) -> String {
     result
 }
 
-// Serve the HTML file with messages
+// Serve the J REPL page with messages
+fn serve_j_repl_with_messages(state: &Arc<AppState>) -> Response<std::io::Cursor<Vec<u8>>> {
+    match File::open("./static/j_repl.html") {
+        Ok(mut file) => {
+            let mut contents = String::new();
+            if file.read_to_string(&mut contents).is_ok() {
+                // Generate HTML for messages
+                let messages = state.messages.lock().unwrap();
+                let messages_html = format!(
+                    "<div class=\"message-container\">{}</div>",
+                    messages
+                        .iter()
+                        .rev() // Reverse the order so most recent is at the bottom
+                        .map(|msg| msg.to_string())
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                );
+                
+                // Replace the placeholder with the messages
+                let contents = contents.replace("$MESSAGES$", &messages_html);
+                
+                let header = Header::from_bytes("Content-Type", "text/html").unwrap();
+                Response::from_string(contents).with_header(header)
+            } else {
+                Response::from_string("Error reading file").with_status_code(500)
+            }
+        },
+        Err(_) => Response::from_string("File not found").with_status_code(404),
+    }
+}
+
+// Serve the original HTML file with messages (for backward compatibility)
 fn serve_html_with_messages(state: &Arc<AppState>) -> Response<std::io::Cursor<Vec<u8>>> {
     match File::open("./static/hello_world.html") {
         Ok(mut file) => {
@@ -124,7 +213,11 @@ fn serve_html_with_messages(state: &Arc<AppState>) -> Response<std::io::Cursor<V
                     messages
                         .iter()
                         .rev() // Reverse the order so most recent is at the bottom
-                        .map(|msg| format!("<div class=\"message\">{}</div>", html_escape(msg)))
+                        .map(|msg| if msg.contains("class=\"message") { 
+                            msg.to_string() 
+                        } else { 
+                            format!("<div class=\"message\">{}</div>", html_escape(msg)) 
+                        })
                         .collect::<Vec<_>>()
                         .join("\n")
                 );

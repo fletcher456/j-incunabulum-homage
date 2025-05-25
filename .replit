@@ -28,6 +28,10 @@ args = "simple_server"
 task = "workflow.run"
 args = "hello_world_server"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "j_interpreter_server"
+
 [[workflows.workflow]]
 name = "C Webserver"
 author = "agent"
@@ -57,6 +61,15 @@ waitForPort = 5000
 
 [[workflows.workflow]]
 name = "hello_world_server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd simple_server && cargo run"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "j_interpreter_server"
 author = "agent"
 
 [[workflows.workflow.tasks]]
