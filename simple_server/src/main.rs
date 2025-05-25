@@ -121,6 +121,7 @@ fn serve_html_with_messages(state: &Arc<AppState>) -> Response<std::io::Cursor<V
                 let messages = state.messages.lock().unwrap();
                 let messages_html = messages
                     .iter()
+                    .rev() // Reverse the order so most recent is at the bottom
                     .map(|msg| format!("<div class=\"message\">{}</div>", html_escape(msg)))
                     .collect::<Vec<_>>()
                     .join("\n");
