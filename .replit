@@ -2,6 +2,7 @@ modules = ["c"]
 
 [nix]
 channel = "stable-24_05"
+packages = ["rustc", "cargo"]
 
 [workflows]
 runButton = "Project"
