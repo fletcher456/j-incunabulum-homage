@@ -1,26 +1,9 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
+#include "modern_j.h"
 
 /**
- * Modernized J interpreter based on the original fragment
- * Converting macros to functions and improving code style
+ * A minimal J language interpreter implementation
+ * Based on the original fragment with improved formatting and structure
  */
-
-/* Type definitions */
-typedef char C;
-typedef long I;
-typedef struct a {
-    I t;       /* Type */
-    I r;       /* Rank */
-    I d[3];    /* Dimensions */
-    I p[2];    /* Data pointer/storage */
-} *A;          /* Array pointer type */
-
-/* Forward declarations */
-A ex(I *e);
-void pr(A w);
 
 /**
  * Memory allocation for arrays
@@ -172,7 +155,7 @@ A size(A w) {
  * Print an integer
  */
 void pi(I i) {
-    printf("%d ", i);
+    printf("%ld ", i);
 }
 
 /**
