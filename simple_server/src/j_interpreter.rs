@@ -1,5 +1,5 @@
 // J Interpreter Module
-// Basic implementation of a J interpreter with support for the iota verb
+// Implementation of a J interpreter with AST-based evaluation
 
 use std::fmt;
 
@@ -79,6 +79,22 @@ impl fmt::Display for JArray {
             }
         }
     }
+}
+
+// AST node structure for representing J expressions
+#[derive(Debug, Clone)]
+pub enum JNode {
+    Literal(JArray),                        // A literal value (scalar or array)
+    MonadicVerb(char, Box<JNode>),          // A monadic verb with its argument
+    DyadicVerb(char, Box<JNode>, Box<JNode>)// A dyadic verb with left and right arguments
+}
+
+// Token types for parsing
+#[derive(Debug, Clone, PartialEq)]
+enum Token {
+    Number(i64),
+    Verb(char),
+    Space,
 }
 
 // Interpreter struct to manage the J session
@@ -164,6 +180,173 @@ impl JInterpreter {
         }
     }
 
+    // Function to tokenize a J expression
+    fn tokenize(&self, input: &str) -> Result<Vec<Token>, String> {
+        let mut tokens = Vec::new();
+        let mut chars = input.chars().peekable();
+        
+        while let Some(&c) = chars.peek() {
+            match c {
+                '0'..='9' => {
+                    let mut number = String::new();
+                    while let Some(&c) = chars.peek() {
+                        if c.is_digit(10) {
+                            number.push(c);
+                            chars.next();
+                        } else {
+                            break;
+                        }
+                    }
+                    match number.parse::<i64>() {
+                        Ok(n) => tokens.push(Token::Number(n)),
+                        Err(_) => return Err(format!("Invalid number: {}", number)),
+                    }
+                },
+                '+' | '~' | '#' | '<' | '{' | ',' => {
+                    tokens.push(Token::Verb(c));
+                    chars.next();
+                },
+                ' ' => {
+                    tokens.push(Token::Space);
+                    chars.next();
+                },
+                _ => {
+                    return Err(format!("Unknown token: {}", c));
+                }
+            }
+        }
+        
+        Ok(tokens)
+    }
+    
+    // Parse tokens into an AST (right to left)
+    fn parse(&self, tokens: Vec<Token>) -> Result<JNode, String> {
+        if tokens.is_empty() {
+            return Err("Empty expression".to_string());
+        }
+        
+        // Create a simple parser for basic expressions
+        // This is a simplified parser that handles only specific patterns
+        
+        // Special case for numeric literals
+        if tokens.len() == 1 {
+            if let Token::Number(n) = tokens[0] {
+                return Ok(JNode::Literal(JArray::new_scalar(n)));
+            }
+        }
+        
+        // Handle "1+~5" pattern (scalar + monadic verb applied to scalar)
+        if tokens.len() == 3 && 
+           matches!(tokens[0], Token::Number(_)) && 
+           matches!(tokens[1], Token::Verb('+')) && 
+           matches!(tokens[2], Token::Verb('~')) {
+            
+            // Get the left operand (scalar)
+            let left_value = if let Token::Number(n) = tokens[0] {
+                n
+            } else {
+                return Err("Expected number as left operand".to_string());
+            };
+            
+            // Get the next token which should be a number
+            if tokens.len() <= 3 {
+                return Err("Expected a number after ~".to_string());
+            }
+            
+            // Create a pattern for ~5 (assuming a 4th token exists)
+            if tokens.len() >= 4 {
+                if let Token::Number(n) = tokens[3] {
+                    // Build the AST from right to left
+                    // First ~5
+                    let right_expr = JNode::MonadicVerb('~', Box::new(JNode::Literal(JArray::new_scalar(n))));
+                    // Then 1+<result of ~5>
+                    return Ok(JNode::DyadicVerb('+', 
+                                           Box::new(JNode::Literal(JArray::new_scalar(left_value))),
+                                           Box::new(right_expr)));
+                }
+            }
+        }
+        
+        // Handle monadic verb followed by scalar (e.g., "~5")
+        if tokens.len() == 2 && 
+           matches!(tokens[0], Token::Verb(_)) && 
+           matches!(tokens[1], Token::Number(_)) {
+            
+            let verb = if let Token::Verb(v) = tokens[0] {
+                v
+            } else {
+                return Err("Expected verb".to_string());
+            };
+            
+            let value = if let Token::Number(n) = tokens[1] {
+                n
+            } else {
+                return Err("Expected number".to_string());
+            };
+            
+            return Ok(JNode::MonadicVerb(verb, Box::new(JNode::Literal(JArray::new_scalar(value)))));
+        }
+        
+        // Handle dyadic verb with two scalars (e.g., "1+2")
+        if tokens.len() == 3 && 
+           matches!(tokens[0], Token::Number(_)) && 
+           matches!(tokens[1], Token::Verb(_)) && 
+           matches!(tokens[2], Token::Number(_)) {
+            
+            let left_value = if let Token::Number(n) = tokens[0] {
+                n
+            } else {
+                return Err("Expected number as left operand".to_string());
+            };
+            
+            let verb = if let Token::Verb(v) = tokens[1] {
+                v
+            } else {
+                return Err("Expected verb".to_string());
+            };
+            
+            let right_value = if let Token::Number(n) = tokens[2] {
+                n
+            } else {
+                return Err("Expected number as right operand".to_string());
+            };
+            
+            return Ok(JNode::DyadicVerb(verb,
+                                   Box::new(JNode::Literal(JArray::new_scalar(left_value))),
+                                   Box::new(JNode::Literal(JArray::new_scalar(right_value)))));
+        }
+        
+        // For now, we don't handle more complex expressions
+        Err("Unsupported expression pattern".to_string())
+    }
+    
+    // Evaluate an AST node
+    fn eval_node(&self, node: &JNode) -> Result<JArray, String> {
+        match node {
+            JNode::Literal(array) => Ok(array.clone()),
+            
+            JNode::MonadicVerb(verb, arg) => {
+                let arg_value = self.eval_node(arg)?;
+                
+                match verb {
+                    '~' => self.iota(arg_value.data[0]),
+                    '+' => self.plus_monadic(&arg_value),
+                    _ => Err(format!("Unsupported monadic verb: {}", verb)),
+                }
+            },
+            
+            JNode::DyadicVerb(verb, left, right) => {
+                let left_value = self.eval_node(left)?;
+                let right_value = self.eval_node(right)?;
+                
+                match verb {
+                    '+' => self.plus_dyadic(&left_value, &right_value),
+                    _ => Err(format!("Unsupported dyadic verb: {}", verb)),
+                }
+            },
+        }
+    }
+
     // Parse a simple numeric vector like "1 2 3 4"
     fn parse_numeric_vector(&self, input: &str) -> Result<JArray, String> {
         let parts: Vec<&str> = input.split_whitespace().collect();
@@ -195,6 +378,20 @@ impl JInterpreter {
                        x+y - plus (dyadic): element-wise addition\n\
                        help - show this help message".to_string());
         }
+        
+        // Try to parse as complex expression with AST
+        if input.contains('+') || input.contains('~') {
+            // Tokenize the input
+            let tokens = self.tokenize(input)?;
+            
+            // Parse tokens into an AST
+            let ast = self.parse(tokens)?;
+            
+            // Evaluate the AST
+            return self.eval_node(&ast);
+        }
+        
+        // Handle simple cases directly
         
         // Handle monadic plus (identity)
         if input.starts_with('+') {
