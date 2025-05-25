@@ -1,18 +1,37 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 typedef char C;typedef long I;
 typedef struct a{I t,r,d[3],p[2];}*A;
 #define P printf
 #define R return
-#define V1(f) A f(w)A w;
-#define V2(f) A f(a,w)A a,w;
+#define V1(f) A f(A w)
+#define V2(f) A f(A a, A w)
 #define DO(n,x) {I i=0,_n=(n);for(;i<_n;++i){x;}}
-I *ma(n){R(I*)malloc(n*4);}mv(d,s,n)I *d,*s;{DO(n,d[i]=s[i]);}
-tr(r,d)I *d;{I z=1;DO(r,z=z*d[i]);R z;}
-A ga(t,r,d)I *d;{A z=(A)ma(5+tr(r,d));z->t=t,z->r=r,mv(z->d,d,r);
- R z;}
+
+I *ma(I n) {
+    R (I*)malloc(n*4);
+}
+
+void mv(I *d, I *s, I n) {
+    DO(n, d[i]=s[i]);
+}
+
+I tr(I r, I *d) {
+    I z=1;
+    DO(r, z=z*d[i]);
+    R z;
+}
+
+A ga(I t, I r, I *d) {
+    A z=(A)ma(5+tr(r,d));
+    z->t=t;
+    z->r=r;
+    mv(z->d, d, r);
+    R z;
+}
 V1(iota){I n=*w->p;A z=ga(0,1,&n);DO(n,z->p[i]=i);R z;}
 V2(plus){I r=w->r,*d=w->d,n=tr(r,d);A z=ga(0,r,d);
  DO(n,z->p[i]=a->p[i]+w->p[i]);R z;}

@@ -97,39 +97,59 @@ void generate_html_response(char *response_buffer, size_t buffer_size) {
         "<!DOCTYPE html>\n"
         "<html>\n"
         "<head>\n"
-        "    <title>Message Board</title>\n"
+        "    <title>J Language Interpreter</title>\n"
         "    <style>\n"
         "        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }\n"
-        "        .submission { border-bottom: 1px solid #eee; padding: 10px 0; }\n"
-        "        .message { font-size: 16px; }\n"
-        "        .timestamp { color: #888; font-size: 12px; }\n"
-        "        form { margin-top: 20px; padding: 15px; background: #f8f8f8; border-radius: 5px; }\n"
-        "        input[type=text] { width: 80%%; padding: 8px; }\n"
-        "        input[type=submit] { padding: 8px 15px; background: #4CAF50; color: white; border: none; cursor: pointer; }\n"
+        "        .submission { border: 1px solid #ddd; border-radius: 5px; margin-bottom: 15px; padding: 15px; background-color: #f9f9f9; }\n"
+        "        .code { font-family: monospace; background-color: #333; color: #fff; padding: 10px; border-radius: 4px; margin-bottom: 10px; }\n"
+        "        .result { font-family: monospace; background-color: #eee; padding: 10px; border-radius: 4px; white-space: pre-wrap; }\n"
+        "        .timestamp { color: #888; font-size: 12px; text-align: right; margin-top: 10px; }\n"
+        "        form { margin-top: 30px; padding: 15px; background: #f0f0f0; border-radius: 5px; }\n"
+        "        input[type=text] { width: 80%%; padding: 10px; font-family: monospace; }\n"
+        "        input[type=submit] { padding: 10px 15px; background: #4050B0; color: white; border: none; cursor: pointer; }\n"
+        "        h1 { color: #4050B0; }\n"
+        "        .examples { margin: 20px 0; padding: 15px; background: #efefef; border-radius: 5px; }\n"
+        "        .examples h3 { margin-top: 0; }\n"
+        "        .examples code { background: #ddd; padding: 2px 5px; border-radius: 3px; }\n"
         "    </style>\n"
         "</head>\n"
         "<body>\n"
-        "    <h1>Message Board</h1>\n"
+        "    <h1>J Language Interpreter</h1>\n"
+        "    <p>Enter J code in the form below to execute it. Results will be displayed in the history.</p>\n"
+        "    <div class=\"examples\">\n"
+        "        <h3>Example J Expressions:</h3>\n"
+        "        <p><code>2+2</code> - Addition</p>\n"
+        "        <p><code>3*4</code> - Multiplication</p>\n"
+        "        <p><code>1 2 3+5</code> - Array addition</p>\n"
+        "        <p><code>i.5</code> - Create array with values 0 to 4</p>\n"
+        "    </div>\n"
     );
 
-    // Add the submissions history
-    for (int i = 0; i < submission_count; i++) {
+    // Add the submission form at the top for convenience
+    offset += snprintf(response_buffer + offset, buffer_size - offset,
+        "    <form method=\"POST\" action=\"/\">\n"
+        "        <input type=\"text\" name=\"message\" placeholder=\"Enter J code (e.g., 2+2, i.5, etc.)\" required>\n"
+        "        <input type=\"submit\" value=\"Execute\">\n"
+        "    </form>\n"
+        "    <h2>Execution History</h2>\n"
+    );
+
+    // Add the submissions history in reverse order (newest first)
+    for (int i = submission_count - 1; i >= 0; i--) {
         offset += snprintf(response_buffer + offset, buffer_size - offset,
             "    <div class=\"submission\">\n"
-            "        <div class=\"message\">%s</div>\n"
+            "        <div class=\"code\">%s</div>\n"
+            "        <div class=\"result\">%s</div>\n"
             "        <div class=\"timestamp\">%s</div>\n"
             "    </div>\n",
-            submissions[i].message,
+            submissions[i].code,
+            submissions[i].result,
             submissions[i].timestamp
         );
     }
 
-    // Add the submission form
+    // Close the HTML
     offset += snprintf(response_buffer + offset, buffer_size - offset,
-        "    <form method=\"POST\" action=\"/\">\n"
-        "        <input type=\"text\" name=\"message\" placeholder=\"Enter your message\" required>\n"
-        "        <input type=\"submit\" value=\"Submit\">\n"
-        "    </form>\n"
         "</body>\n"
         "</html>\n"
     );
