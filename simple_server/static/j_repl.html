@@ -102,6 +102,41 @@
             margin-top: 10px;
             text-align: center;
         }
+        .calculator-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .calc-btn {
+            background-color: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .calc-btn:hover {
+            background-color: #e0e0e0;
+        }
+        .clear-btn {
+            background-color: #ff9999;
+            color: white;
+        }
+        .clear-btn:hover {
+            background-color: #ff6666;
+        }
+        .eval-btn {
+            background-color: #4285f4;
+            color: white;
+            grid-column: span 2;
+            font-size: 16px;
+        }
+        .eval-btn:hover {
+            background-color: #3367d6;
+        }
     </style>
 </head>
 <body>
@@ -114,13 +149,29 @@
                 $MESSAGES$
             </div>
             
-            <form action="/j_eval" method="post">
-                <input type="text" name="expression" placeholder="Enter J expression (try '~5' or 'help')" required>
-                <button type="submit">Evaluate</button>
+            <form action="/j_eval" method="post" id="j-form">
+                <input type="text" id="expression-input" name="expression" placeholder="Enter J expression (try '~5' or 'help')" required>
+                <div class="calculator-buttons">
+                    <button type="button" class="calc-btn" onclick="appendToInput('1')">1</button>
+                    <button type="button" class="calc-btn" onclick="appendToInput('2')">2</button>
+                    <button type="button" class="calc-btn" onclick="appendToInput('3')">3</button>
+                    <button type="button" class="calc-btn" onclick="appendToInput('+')" title="Plus/Identity">+</button>
+                    <button type="button" class="calc-btn" onclick="appendToInput('4')">4</button>
+                    <button type="button" class="calc-btn" onclick="appendToInput('5')">5</button>
+                    <button type="button" class="calc-btn" onclick="appendToInput('6')">6</button>
+                    <button type="button" class="calc-btn" onclick="appendToInput('~')" title="Iota">~</button>
+                    <button type="button" class="calc-btn" onclick="appendToInput('7')">7</button>
+                    <button type="button" class="calc-btn" onclick="appendToInput('8')">8</button>
+                    <button type="button" class="calc-btn" onclick="appendToInput('9')">9</button>
+                    <button type="button" class="calc-btn" onclick="appendToInput(' ')" title="Space">␣</button>
+                    <button type="button" class="calc-btn" onclick="appendToInput('0')">0</button>
+                    <button type="button" class="calc-btn clear-btn" onclick="clearInput()">Clear</button>
+                    <button type="submit" class="eval-btn">Evaluate</button>
+                </div>
             </form>
             
             <div class="help-text">
-                Try <code>~5</code> to generate integers from 0 to 4, or type <code>help</code> for more commands.
+                Try <code>~5</code> to generate integers from 0 to 4, <code>+5</code> for identity function, <code>2+3</code> for addition, or type <code>help</code> for more commands.
             </div>
         </div>
     </div>
@@ -129,14 +180,34 @@
         // Function to scroll to bottom of messages
         function scrollToBottom() {
             const messagesDiv = document.getElementById('messages');
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            if (messagesDiv) {
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
+        }
+        
+        // Function to append text to the input field
+        function appendToInput(text) {
+            const input = document.getElementById('expression-input');
+            if (input) {
+                input.value += text;
+                input.focus();
+            }
+        }
+        
+        // Function to clear the input field
+        function clearInput() {
+            const input = document.getElementById('expression-input');
+            if (input) {
+                input.value = '';
+                input.focus();
+            }
         }
         
         // Scroll to bottom when page loads
         window.onload = scrollToBottom;
         
         // Simple JavaScript to manage form submission
-        document.querySelector('form').addEventListener('submit', function(e) {
+        document.getElementById('j-form').addEventListener('submit', function(e) {
             e.preventDefault();
             
             const input = this.querySelector('input[name="expression"]');
