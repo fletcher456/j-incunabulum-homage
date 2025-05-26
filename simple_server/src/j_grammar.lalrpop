@@ -4,28 +4,29 @@ use crate::tokenizer::Token;
 
 grammar;
 
-// Precedence declarations (lowest to highest precedence)
-// Higher precedence = tighter binding
-%right DYADIC;      // Dyadic operators (lower precedence)
-%right MONADIC;     // Monadic operators (higher precedence)
-
 pub JExpression: JNode = {
     Expression,
 };
 
 Expression: JNode = {
-    // Dyadic expression (lower precedence)
-    <left:Expression> <verb:DyadicVerb> <right:Expression> %prec DYADIC => {
+    DyadicExpr,
+    MonadicExpr,
+    Term,
+};
+
+DyadicExpr: JNode = {
+    <left:MonadicExpr> <verb:Verb> <right:Expression> => {
         JNode::AmbiguousVerb(verb, Some(Box::new(left)), Some(Box::new(right)))
     },
-    
-    // Monadic expression (higher precedence)
-    <verb:MonadicVerb> <expr:Expression> %prec MONADIC => {
+    <left:Term> <verb:Verb> <right:Expression> => {
+        JNode::AmbiguousVerb(verb, Some(Box::new(left)), Some(Box::new(right)))
+    },
+};
+
+MonadicExpr: JNode = {
+    <verb:Verb> <expr:Term> => {
         JNode::AmbiguousVerb(verb, None, Some(Box::new(expr)))
     },
-    
-    // Base terms
-    Term,
 };
 
 Term: JNode = {
@@ -33,17 +34,8 @@ Term: JNode = {
     "(" <Expression> ")",
 };
 
-// Define verbs with explicit precedence
-DyadicVerb: char = {
-    "+" => '+',
-    "~" => '~',
-    "#" => '#',
-    "<" => '<',
-    "{" => '{',
-    "," => ',',
-};
-
-MonadicVerb: char = {
+// Unified verb definition
+Verb: char = {
     "+" => '+',
     "~" => '~',
     "#" => '#',
