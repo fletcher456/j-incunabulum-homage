@@ -546,7 +546,17 @@ mod performance_tests {
 ### Expression: ~3+~3
 - **Current Parser Result**: 0 1 2 (INCORRECT)
 - **LALRPOP Parser Result**: 0 2 4 (CORRECT) ✅
-- **Parse Tree**: 
+- **Current Parse Tree (Wrong)**:
+  ```
+  MonadicVerb: '~'
+    Right: DyadicVerb: '+'
+      Left: Literal: 3
+      Right: MonadicVerb: '~'
+        Argument: Literal: 3
+  ```
+  This incorrectly parses as ~(3+~3) = ~(3+[0 1 2]) = ~[3 4 5] = [0 1 2]
+
+- **LALRPOP Parse Tree (Correct)**:
   ```
   DyadicVerb: '+'
     Left: MonadicVerb: '~'
@@ -554,6 +564,7 @@ mod performance_tests {
     Right: MonadicVerb: '~'
       Argument: Literal: 3
   ```
+  This correctly parses as (~3)+(~3) = [0 1 2]+[0 1 2] = [0 2 4]
 
 ## Regression Test Results
 - Expression: 5 → Result: 5 ✅
