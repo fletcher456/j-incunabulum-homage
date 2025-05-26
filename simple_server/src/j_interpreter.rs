@@ -320,65 +320,59 @@ impl JInterpreter {
         Err("Could not parse subexpression".to_string())
     }
     
-    // Bottom-up parsing with backtracking
+    // Bottom-up parsing using peek-and-decide strategy
     fn parse_with_backtracking(&self, tokens: Vec<Token>) -> Result<JNode, String> {
-        println!("DEBUG: Parsing tokens: {:?}", tokens);
-        let mut backtrack_count = 0;
-        let max_backtrack = 10;
+        if tokens.is_empty() {
+            return Err("Empty expression".to_string());
+        }
         
-        // Start with the whole expression
-        let mut right_pos = tokens.len();
+        let mut pos = tokens.len() - 1; // Start from the rightmost token
         
-        while right_pos > 0 && backtrack_count < max_backtrack {
-            // Try to parse the rightmost part first
-            let right_tokens = &tokens[tokens.len().saturating_sub(right_pos)..];
-            println!("DEBUG: Trying to parse right tokens: {:?}", right_tokens);
-            let right_result = self.parse_subexpression(right_tokens);
+        // First token must be a noun (number)
+        let mut rhs = match &tokens[pos] {
+            Token::Number(n) => JNode::Literal(JArray::new_scalar(*n)),
+            Token::Verb(_) => return Err("Expression cannot end with a verb".to_string()),
+            _ => return Err("Unexpected token".to_string()),
+        };
+        
+        // Process tokens from right to left
+        while pos > 0 {
+            pos -= 1; // Move to the next token to the left
             
-            if let Ok(right_node) = right_result {
-                println!("DEBUG: Successfully parsed right side: {:?}", right_node);
-                // If we parsed the entire expression, we're done
-                if right_tokens.len() == tokens.len() {
-                    return Ok(right_node);
+            match &tokens[pos] {
+                Token::Number(_) => {
+                    return Err("Two numbers cannot be adjacent without a verb".to_string());
                 }
-                
-                // Check if there's a potential dyadic operation
-                let left_end = tokens.len() - right_tokens.len();
-                if left_end > 0 && matches!(tokens[left_end-1], Token::Verb(_)) {
-                    // We have a verb before the right expression, try to parse the left side
-                    let verb_pos = left_end - 1;
-                    let verb = if let Token::Verb(v) = tokens[verb_pos] { v } else { '+' }; // Default shouldn't happen
-                    println!("DEBUG: Found verb '{}' at position {}", verb, verb_pos);
+                Token::Verb(verb) => {
+                    let verb_char = *verb;
                     
-                    if verb_pos > 0 {
-                        let left_tokens = &tokens[0..verb_pos];
-                        println!("DEBUG: Trying to parse left tokens: {:?}", left_tokens);
-                        let left_result = self.parse_subexpression(left_tokens);
-                        
-                        if let Ok(left_node) = left_result {
-                            println!("DEBUG: Successfully parsed left side: {:?}", left_node);
-                            // We successfully parsed a dyadic operation
-                            return Ok(JNode::DyadicVerb(verb, Box::new(left_node), Box::new(right_node)));
-                        } else {
-                            println!("DEBUG: Failed to parse left side: {:?}", left_result);
+                    if pos == 0 {
+                        // This is a monadic verb at the beginning
+                        rhs = JNode::MonadicVerb(verb_char, Box::new(rhs));
+                        break;
+                    } else {
+                        // Peek at the token before the verb
+                        match &tokens[pos - 1] {
+                            Token::Number(n) => {
+                                // We have N V RHS, make it a dyadic operation N V RHS
+                                let left = JNode::Literal(JArray::new_scalar(*n));
+                                rhs = JNode::DyadicVerb(verb_char, Box::new(left), Box::new(rhs));
+                                pos -= 1; // Consume the number
+                            }
+                            Token::Verb(_) => {
+                                // We have V V RHS, make the current verb monadic: V (V RHS)
+                                rhs = JNode::MonadicVerb(verb_char, Box::new(rhs));
+                                // Don't consume the previous verb, leave it for the next iteration
+                            }
+                            _ => return Err("Unexpected token before verb".to_string()),
                         }
                     }
                 }
-            } else {
-                println!("DEBUG: Failed to parse right side: {:?}", right_result);
+                _ => return Err("Unexpected token".to_string()),
             }
-            
-            // Backtrack by trying to parse a smaller part from the right
-            right_pos -= 1;
-            backtrack_count += 1;
-            println!("DEBUG: Backtracking, new right_pos: {}", right_pos);
         }
         
-        if backtrack_count >= max_backtrack {
-            return Err("Parse error: Too much backtracking required".to_string());
-        }
-        
-        Err("Could not parse expression".to_string())
+        Ok(rhs)
     }
     
     // Evaluate an AST node
