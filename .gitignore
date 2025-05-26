@@ -1,0 +1,34 @@
+# Rust build artifacts
+/simple_server/target/
+/simple_server/Cargo.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Backup files
+*~
+*.bak
+
+# Environment files
+.env
+.env.local
+.env.production
