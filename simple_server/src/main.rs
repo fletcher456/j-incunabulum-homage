@@ -18,6 +18,10 @@ mod visualizer;
 
 use interpreter::{JInterpreter, format_result};
 use visualizer::ParseTreeVisualizer;
+use lalr_parser::LalrParser;
+use tokenizer::JTokenizer;
+use semantic_analyzer::JSemanticAnalyzer;
+use evaluator::JEvaluator;
 
 // Store messages and J interpreter state in a thread-safe container
 struct AppState {
@@ -63,21 +67,53 @@ fn main() {
                         // URL decode the J expression
                         let expression = url_decode(expression);
                         
-                        // Evaluate the J expression with debug info
-                        let result = state.j_interpreter.execute_with_debug(&expression);
+                        // Use LALRPOP parser with manual pipeline
+                        let tokenizer = JTokenizer::new();
+                        let lalr_parser = LalrParser::new();
+                        let semantic_analyzer = JSemanticAnalyzer::new();
+                        let evaluator = JEvaluator::new();
+                        let visualizer = ParseTreeVisualizer::new();
                         
-                        let formatted_result = match &result {
-                            Ok((array, parse_tree)) => {
-                                // Print parse tree to console for debugging
-                                println!("Expression: {}", expression);
-                                println!("{}", parse_tree);
-                                println!("Result: {}\n", array);
-                                
-                                // Include parse tree in the result for web display
-                                format!("{}\n\n{}", array, parse_tree)
+                        let formatted_result = match tokenizer.tokenize(&expression) {
+                            Ok(tokens) => {
+                                match lalr_parser.parse(tokens) {
+                                    Ok(ast) => {
+                                        let parse_tree_text = format!("LALRPOP Parse Tree:\n{}", visualizer.visualize(&ast));
+                                        
+                                        println!("Expression: {}", expression);
+                                        println!("{}", parse_tree_text);
+                                        
+                                        match semantic_analyzer.analyze(ast) {
+                                            Ok(resolved_ast) => {
+                                                match evaluator.evaluate(&resolved_ast) {
+                                                    Ok(result_array) => {
+                                                        println!("Result: {}\n", result_array);
+                                                        format!("{}\n\n{}", result_array, parse_tree_text)
+                                                    }
+                                                    Err(eval_err) => {
+                                                        let error_text = format!("Evaluation Error: {}", eval_err);
+                                                        println!("{}\n", error_text);
+                                                        format!("{}\n\n{}", error_text, parse_tree_text)
+                                                    }
+                                                }
+                                            }
+                                            Err(semantic_err) => {
+                                                let error_text = format!("Semantic Error: {}", semantic_err);
+                                                println!("{}\n", error_text);
+                                                format!("{}\n\n{}", error_text, parse_tree_text)
+                                            }
+                                        }
+                                    }
+                                    Err(parse_err) => {
+                                        let error_text = format!("Parse Error: {}", parse_err);
+                                        println!("Expression: {}", expression);
+                                        println!("{}\n", error_text);
+                                        error_text
+                                    }
+                                }
                             }
-                            Err(error) => {
-                                let error_text = format!("Error: {}", error);
+                            Err(token_err) => {
+                                let error_text = format!("Token Error: {}", token_err);
                                 println!("Expression: {}", expression);
                                 println!("{}\n", error_text);
                                 error_text
