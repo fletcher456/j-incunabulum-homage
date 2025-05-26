@@ -1,6 +1,6 @@
 # J Order of Operations
 
-This document explains the abstract sequence of transformations that must take place to evaluate a J expression like `1+~5`.
+This document explains the abstract sequence of transformations that must take place to evaluate a J expression like `1+\~5`.
 
 ## J Execution Model
 
@@ -8,16 +8,16 @@ In J, expressions are generally evaluated from right to left, which is different
 
 Additionally, J distinguishes between monadic (one argument) and dyadic (two argument) verbs. The same symbol can represent different operations depending on whether it's used monadically or dyadically.
 
-## Example: Evaluating `1+~5`
+## Example: Evaluating `1+\~5`
 
-The expression `1+~5` involves the monadic iota verb (`~`) and the dyadic plus verb (`+`). Let's break down the evaluation steps:
+The expression `1+\~5` involves the monadic iota verb (`\~`) and the dyadic plus verb (`+`). Let's break down the evaluation steps:
 
 ### Step 1: Parsing and Tokenization
 
-The expression `1+~5` is parsed into tokens:
+The expression `1+\~5` is parsed into tokens:
 - `1`: A numeric literal (scalar)
 - `+`: The plus verb
-- `~`: The iota verb
+- `\~`: The iota verb
 - `5`: A numeric literal (scalar)
 
 ### Step 2: Building the Abstract Syntax Tree (AST)
@@ -27,15 +27,15 @@ In J's right-to-left execution model, we build the AST starting from the right:
 ```
    +
   / \
- 1   ~
+ 1   \~
      |
      5
 ```
 
 ### Step 3: Evaluating Monadic Verbs
 
-Starting from the rightmost operation, we evaluate `~5` (the monadic iota applied to 5):
-1. `~5` creates an array of integers from 0 to 4: `[0, 1, 2, 3, 4]`
+Starting from the rightmost operation, we evaluate `\~5` (the monadic iota applied to 5):
+1. `\~5` creates an array of integers from 0 to 4: `[0, 1, 2, 3, 4]`
 
 So now our expression is effectively: `1 + [0, 1, 2, 3, 4]`
 
@@ -47,7 +47,7 @@ Now we evaluate the dyadic plus operation `1 + [0, 1, 2, 3, 4]`:
 
 ### Step 5: Returning the Result
 
-The final result of evaluating `1+~5` is the array `[1, 2, 3, 4, 5]`.
+The final result of evaluating `1+\~5` is the array `[1, 2, 3, 4, 5]`.
 
 ## Implementation Considerations
 
@@ -57,7 +57,7 @@ To implement this evaluation process in our J interpreter, we need:
 2. **AST Builder**: A function to build an abstract syntax tree from the tokens
 3. **Evaluator**: A function to evaluate the AST in the correct order (right-to-left)
 
-For monadic verbs like `~`, we need to identify when a verb is being used monadically (no left argument) and apply the appropriate monadic function.
+For monadic verbs like `\~`, we need to identify when a verb is being used monadically (no left argument) and apply the appropriate monadic function.
 
 For dyadic verbs like `+`, we need to identify when a verb is being used dyadically (has both left and right arguments) and apply the appropriate dyadic function.
 
