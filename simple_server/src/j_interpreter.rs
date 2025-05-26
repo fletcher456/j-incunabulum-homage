@@ -84,9 +84,13 @@ impl fmt::Display for JArray {
 // AST node structure for representing J expressions
 #[derive(Debug, Clone)]
 pub enum JNode {
+    // Final resolved nodes
     Literal(JArray),                        // A literal value (scalar or array)
     MonadicVerb(char, Box<JNode>),          // A monadic verb with its argument
-    DyadicVerb(char, Box<JNode>, Box<JNode>)// A dyadic verb with left and right arguments
+    DyadicVerb(char, Box<JNode>, Box<JNode>),// A dyadic verb with left and right arguments
+    
+    // Intermediate ambiguous nodes for context resolution
+    AmbiguousVerb(char, Option<Box<JNode>>, Option<Box<JNode>>), // Verb with optional left and right operands
 }
 
 // Token types for parsing
@@ -273,68 +277,128 @@ impl JInterpreter {
     
 
     
-    // Parse tokens into an AST using bottom-up approach with backtracking
+    // Parse tokens into an AST using three-phase strategy
     fn parse(&self, tokens: Vec<Token>) -> Result<JNode, String> {
         if tokens.is_empty() {
             return Err("Empty expression".to_string());
         }
         
-        // Use the new backtracking parser
-        self.parse_with_backtracking(tokens)
+        // Phase 1: Context-free parsing with ambiguous verbs
+        let ambiguous_ast = self.parse_context_free(tokens)?;
+        
+        // Phase 2: Context resolution
+        let resolved_ast = self.resolve_context(ambiguous_ast)?;
+        
+        // Phase 3: Right-to-left restructuring
+        let final_ast = self.restructure_right_associative(resolved_ast)?;
+        
+        Ok(final_ast)
     }
     
 
     
-    // Bottom-up parsing using peek-and-decide strategy
-    fn parse_with_backtracking(&self, tokens: Vec<Token>) -> Result<JNode, String> {
+    // Phase 1: Context-free parsing - creates ambiguous verb nodes
+    fn parse_context_free(&self, tokens: Vec<Token>) -> Result<JNode, String> {
         if tokens.is_empty() {
             return Err("Empty expression".to_string());
         }
         
-        let mut pos = tokens.len() - 1; // Start from the rightmost token
+        self.parse_expression(&tokens, 0).map(|(node, _)| node)
+    }
+    
+    // Recursive descent parser for expressions
+    fn parse_expression(&self, tokens: &[Token], pos: usize) -> Result<(JNode, usize), String> {
+        if pos >= tokens.len() {
+            return Err("Unexpected end of input".to_string());
+        }
         
-        // First token must be a vector (noun)
-        let mut rhs = match &tokens[pos] {
-            Token::Vector(jarray) => JNode::Literal(jarray.clone()),
-            Token::Verb(_) => return Err("Expression cannot end with a verb".to_string()),
-        };
+        let (term, mut new_pos) = self.parse_term(tokens, pos)?;
         
-        // Process tokens from right to left
-        while pos > 0 {
-            pos -= 1; // Move to the next token to the left
-            
-            match &tokens[pos] {
-                Token::Vector(_) => {
-                    return Err("Two vectors cannot be adjacent without a verb".to_string());
-                }
-                Token::Verb(verb) => {
-                    let verb_char = *verb;
-                    
-                    if pos == 0 {
-                        // This is a monadic verb at the beginning
-                        rhs = JNode::MonadicVerb(verb_char, Box::new(rhs));
-                        break;
-                    } else {
-                        // Peek at the token before the verb
-                        match &tokens[pos - 1] {
-                            Token::Vector(jarray) => {
-                                // We have Vector V RHS, make it a dyadic operation Vector V RHS
-                                let left = JNode::Literal(jarray.clone());
-                                rhs = JNode::DyadicVerb(verb_char, Box::new(left), Box::new(rhs));
-                                pos -= 1; // Consume the vector
-                            }
-                            Token::Verb(_) => {
-                                // We have V V RHS, make the current verb monadic: V (V RHS)
-                                rhs = JNode::MonadicVerb(verb_char, Box::new(rhs));
-                                // Don't consume the previous verb, leave it for the next iteration
-                            }
-                        }
-                    }
+        // Check if there's a verb followed by another expression
+        if new_pos < tokens.len() {
+            if let Token::Verb(verb) = tokens[new_pos] {
+                new_pos += 1;
+                if new_pos < tokens.len() {
+                    let (right_expr, final_pos) = self.parse_expression(tokens, new_pos)?;
+                    return Ok((JNode::AmbiguousVerb(verb, Some(Box::new(term)), Some(Box::new(right_expr))), final_pos));
+                } else {
+                    return Err("Expected expression after verb".to_string());
                 }
             }
         }
         
-        Ok(rhs)
+        Ok((term, new_pos))
+    }
+    
+    // Parse a term (verb + expression, atom, or grouped expression)
+    fn parse_term(&self, tokens: &[Token], pos: usize) -> Result<(JNode, usize), String> {
+        if pos >= tokens.len() {
+            return Err("Unexpected end of input".to_string());
+        }
+        
+        match &tokens[pos] {
+            Token::Verb(verb) => {
+                // Leading verb - will be resolved as monadic in Phase 2
+                let (expr, new_pos) = self.parse_expression(tokens, pos + 1)?;
+                Ok((JNode::AmbiguousVerb(*verb, None, Some(Box::new(expr))), new_pos))
+            }
+            Token::Vector(jarray) => {
+                // Literal vector/scalar
+                Ok((JNode::Literal(jarray.clone()), pos + 1))
+            }
+        }
+    }
+    
+    // Phase 2: Context resolution - convert ambiguous verbs to monadic/dyadic
+    fn resolve_context(&self, node: JNode) -> Result<JNode, String> {
+        match node {
+            JNode::AmbiguousVerb(verb, left, right) => {
+                match (left, right) {
+                    (None, Some(right)) => {
+                        // Leading verb - monadic
+                        Ok(JNode::MonadicVerb(verb, Box::new(self.resolve_context(*right)?)))
+                    }
+                    (Some(left), Some(right)) => {
+                        // Verb between expressions - dyadic
+                        Ok(JNode::DyadicVerb(
+                            verb,
+                            Box::new(self.resolve_context(*left)?),
+                            Box::new(self.resolve_context(*right)?)
+                        ))
+                    }
+                    _ => Err("Invalid verb context".to_string())
+                }
+            }
+            JNode::Literal(array) => Ok(JNode::Literal(array)),
+            JNode::MonadicVerb(verb, arg) => {
+                Ok(JNode::MonadicVerb(verb, Box::new(self.resolve_context(*arg)?)))
+            }
+            JNode::DyadicVerb(verb, left, right) => {
+                Ok(JNode::DyadicVerb(
+                    verb,
+                    Box::new(self.resolve_context(*left)?),
+                    Box::new(self.resolve_context(*right)?)
+                ))
+            }
+        }
+    }
+    
+    // Phase 3: Right-to-left restructuring for J's evaluation order
+    fn restructure_right_associative(&self, node: JNode) -> Result<JNode, String> {
+        match node {
+            JNode::DyadicVerb(op, left, right) => {
+                let resolved_left = self.restructure_right_associative(*left)?;
+                let resolved_right = self.restructure_right_associative(*right)?;
+                
+                // J evaluates right-to-left, so we keep the current structure
+                // The right-associative nature is inherent in our recursive parsing
+                Ok(JNode::DyadicVerb(op, Box::new(resolved_left), Box::new(resolved_right)))
+            }
+            JNode::MonadicVerb(verb, arg) => {
+                Ok(JNode::MonadicVerb(verb, Box::new(self.restructure_right_associative(*arg)?)))
+            }
+            other => Ok(other)
+        }
     }
     
     // Evaluate an AST node
@@ -361,6 +425,10 @@ impl JInterpreter {
                     _ => Err(format!("Unsupported dyadic verb: {}", verb)),
                 }
             },
+            
+            JNode::AmbiguousVerb(_, _, _) => {
+                Err("Internal error: AmbiguousVerb node should have been resolved before evaluation".to_string())
+            }
         }
     }
 
