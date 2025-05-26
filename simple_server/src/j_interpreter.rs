@@ -4,14 +4,14 @@
 use std::fmt;
 
 // J array types
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum JType {
     Integer,
     Box,
 }
 
 // J array structure (similar to the C version's 'A' struct)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct JArray {
     pub array_type: JType,
     pub rank: usize,
@@ -92,9 +92,8 @@ pub enum JNode {
 // Token types for parsing
 #[derive(Debug, Clone, PartialEq)]
 enum Token {
-    Number(i64),
+    Vector(JArray),
     Verb(char),
-    Space,
 }
 
 // Interpreter struct to manage the J session
@@ -180,7 +179,7 @@ impl JInterpreter {
         }
     }
 
-    // Function to tokenize a J expression
+    // Function to tokenize a J expression into vectors and verbs
     fn tokenize(&self, input: &str) -> Result<Vec<Token>, String> {
         let mut tokens = Vec::new();
         let mut chars = input.chars().peekable();
@@ -188,6 +187,10 @@ impl JInterpreter {
         while let Some(&c) = chars.peek() {
             match c {
                 '0'..='9' => {
+                    // Parse a vector (space-separated numbers)
+                    let mut numbers = Vec::new();
+                    
+                    // Parse the first number
                     let mut number = String::new();
                     while let Some(&c) = chars.peek() {
                         if c.is_digit(10) {
@@ -198,16 +201,65 @@ impl JInterpreter {
                         }
                     }
                     match number.parse::<i64>() {
-                        Ok(n) => tokens.push(Token::Number(n)),
+                        Ok(n) => numbers.push(n),
                         Err(_) => return Err(format!("Invalid number: {}", number)),
                     }
+                    
+                    // Look for more space-separated numbers
+                    while let Some(&next_char) = chars.peek() {
+                        if next_char == ' ' {
+                            chars.next(); // consume the space
+                            
+                            // Skip any additional spaces
+                            while let Some(&c) = chars.peek() {
+                                if c == ' ' {
+                                    chars.next();
+                                } else {
+                                    break;
+                                }
+                            }
+                            
+                            // Check if the next character starts a number
+                            if let Some(&c) = chars.peek() {
+                                if c.is_digit(10) {
+                                    let mut number = String::new();
+                                    while let Some(&c) = chars.peek() {
+                                        if c.is_digit(10) {
+                                            number.push(c);
+                                            chars.next();
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                    match number.parse::<i64>() {
+                                        Ok(n) => numbers.push(n),
+                                        Err(_) => return Err(format!("Invalid number: {}", number)),
+                                    }
+                                } else {
+                                    break; // Not a number, end of vector
+                                }
+                            } else {
+                                break; // End of input
+                            }
+                        } else {
+                            break; // Not a space, end of vector
+                        }
+                    }
+                    
+                    // Create JArray token
+                    let jarray = if numbers.len() == 1 {
+                        JArray::new_scalar(numbers[0])
+                    } else {
+                        JArray::new_integer(1, vec![numbers.len()], numbers)
+                    };
+                    tokens.push(Token::Vector(jarray));
                 },
                 '+' | '~' | '#' | '<' | '{' | ',' => {
                     tokens.push(Token::Verb(c));
                     chars.next();
                 },
                 ' ' => {
-                    tokens.push(Token::Space);
+                    // Skip standalone spaces (they're handled in number parsing)
                     chars.next();
                 },
                 _ => {
@@ -219,48 +271,7 @@ impl JInterpreter {
         Ok(tokens)
     }
     
-    // Build a vector JArray from consecutive number tokens
-    fn build_vector(&self, tokens: &[Token], start_idx: usize) -> Result<(JArray, usize), String> {
-        let mut values = Vec::new();
-        let mut idx = start_idx;
-        
-        // First token should be a number
-        if idx >= tokens.len() {
-            return Err("Expected number for vector, but found end of input".to_string());
-        }
-        
-        if let Token::Number(n) = tokens[idx] {
-            values.push(n);
-            idx += 1;
-        } else {
-            return Err("Expected number for vector".to_string());
-        }
-        
-        // Look for more numbers separated by spaces
-        while idx + 1 < tokens.len() {
-            if let Token::Space = tokens[idx] {
-                if let Token::Number(n) = tokens[idx + 1] {
-                    values.push(n);
-                    idx += 2; // Skip the space and the number
-                } else {
-                    break; // Not a number after space, end of vector
-                }
-            } else {
-                break; // Not a space, end of vector
-            }
-        }
-        
-        // Create the vector JArray
-        let array = if values.len() == 1 {
-            // Single value, create a scalar
-            JArray::new_scalar(values[0])
-        } else {
-            // Multiple values, create a vector
-            JArray::new_integer(1, vec![values.len()], values)
-        };
-        
-        Ok((array, idx))
-    }
+
     
     // Parse tokens into an AST using bottom-up approach with backtracking
     fn parse(&self, tokens: Vec<Token>) -> Result<JNode, String> {
@@ -272,53 +283,7 @@ impl JInterpreter {
         self.parse_with_backtracking(tokens)
     }
     
-    // Parse a subexpression - handles common patterns
-    fn parse_subexpression(&self, tokens: &[Token]) -> Result<JNode, String> {
-        if tokens.is_empty() {
-            return Err("Empty subexpression".to_string());
-        }
-        
-        // Single number token
-        if tokens.len() == 1 {
-            if let Token::Number(n) = tokens[0] {
-                return Ok(JNode::Literal(JArray::new_scalar(n)));
-            }
-        }
-        
-        // Handle vectors (space-separated numbers)
-        if let Token::Number(_) = tokens[0] {
-            // Try to parse a vector starting at index 0
-            let (vector, end_idx) = self.build_vector(tokens, 0)?;
-            
-            // If we consumed all tokens, return the vector literal
-            if end_idx >= tokens.len() {
-                return Ok(JNode::Literal(vector));
-            }
-        }
-        
-        // Handle monadic verb patterns
-        if tokens.len() >= 2 && matches!(tokens[0], Token::Verb(_)) {
-            let verb = if let Token::Verb(v) = tokens[0] {
-                v
-            } else {
-                return Err("Expected verb".to_string());
-            };
-            
-            // Parse the rest of the tokens as the argument to the monadic verb
-            let arg_result = self.parse_subexpression(&tokens[1..]);
-            if arg_result.is_ok() {
-                return Ok(JNode::MonadicVerb(verb, Box::new(arg_result.unwrap())));
-            }
-            
-            // If we couldn't parse a complex expression, try a simple vector
-            if matches!(tokens[1], Token::Number(_)) {
-                let (arg_vector, _) = self.build_vector(tokens, 1)?;
-                return Ok(JNode::MonadicVerb(verb, Box::new(JNode::Literal(arg_vector))));
-            }
-        }
-        
-        Err("Could not parse subexpression".to_string())
-    }
+
     
     // Bottom-up parsing using peek-and-decide strategy
     fn parse_with_backtracking(&self, tokens: Vec<Token>) -> Result<JNode, String> {
@@ -328,11 +293,10 @@ impl JInterpreter {
         
         let mut pos = tokens.len() - 1; // Start from the rightmost token
         
-        // First token must be a noun (number)
+        // First token must be a vector (noun)
         let mut rhs = match &tokens[pos] {
-            Token::Number(n) => JNode::Literal(JArray::new_scalar(*n)),
+            Token::Vector(jarray) => JNode::Literal(jarray.clone()),
             Token::Verb(_) => return Err("Expression cannot end with a verb".to_string()),
-            _ => return Err("Unexpected token".to_string()),
         };
         
         // Process tokens from right to left
@@ -340,8 +304,8 @@ impl JInterpreter {
             pos -= 1; // Move to the next token to the left
             
             match &tokens[pos] {
-                Token::Number(_) => {
-                    return Err("Two numbers cannot be adjacent without a verb".to_string());
+                Token::Vector(_) => {
+                    return Err("Two vectors cannot be adjacent without a verb".to_string());
                 }
                 Token::Verb(verb) => {
                     let verb_char = *verb;
@@ -353,22 +317,20 @@ impl JInterpreter {
                     } else {
                         // Peek at the token before the verb
                         match &tokens[pos - 1] {
-                            Token::Number(n) => {
-                                // We have N V RHS, make it a dyadic operation N V RHS
-                                let left = JNode::Literal(JArray::new_scalar(*n));
+                            Token::Vector(jarray) => {
+                                // We have Vector V RHS, make it a dyadic operation Vector V RHS
+                                let left = JNode::Literal(jarray.clone());
                                 rhs = JNode::DyadicVerb(verb_char, Box::new(left), Box::new(rhs));
-                                pos -= 1; // Consume the number
+                                pos -= 1; // Consume the vector
                             }
                             Token::Verb(_) => {
                                 // We have V V RHS, make the current verb monadic: V (V RHS)
                                 rhs = JNode::MonadicVerb(verb_char, Box::new(rhs));
                                 // Don't consume the previous verb, leave it for the next iteration
                             }
-                            _ => return Err("Unexpected token before verb".to_string()),
                         }
                     }
                 }
-                _ => return Err("Unexpected token".to_string()),
             }
         }
         
