@@ -130,6 +130,10 @@
         .btn-space {
             grid-column: span 2;
         }
+        .btn-paren {
+            background-color: #90EE90; /* Light green */
+            font-weight: bold;
+        }
         .help-text {
             font-size: 14px;
             color: #666;
@@ -174,10 +178,11 @@
                     <button type="button" class="btn btn-number" data-value="2">2</button>
                     <button type="button" class="btn btn-number" data-value="3">3</button>
                     
-                    <!-- Row 4: ←␣0 = -->
+                    <!-- Row 4: ←␣()0 = -->
                     <button type="button" class="btn btn-control" data-value="←" id="backspace-btn">←</button>
                     <button type="button" class="btn btn-control" data-value=" ">␣</button>
-                    <button type="button" class="btn" style="visibility: hidden;"></button> <!-- Empty space -->                    <button type="button" class="btn btn-number" data-value="0">0</button>
+                    <button type="button" class="btn btn-paren" id="paren-btn">()</button>
+                    <button type="button" class="btn btn-number" data-value="0">0</button>
                     <button type="button" class="btn btn-eval" id="eval-btn">=</button>
 
                 </div>
@@ -208,21 +213,35 @@
             const form = document.getElementById('j-form');
             const evalBtn = document.getElementById('eval-btn');
             const backspaceBtn = document.getElementById('backspace-btn');
+            const parenBtn = document.getElementById('paren-btn');
+            
+            // Parentheses button mode: 0 = insert pair, 1 = move past right paren
+            let parenMode = 0;
             
             // Handler for regular buttons (numbers, verbs, space)
-            const regularButtons = document.querySelectorAll('.btn:not(#eval-btn):not(#backspace-btn)');
+            const regularButtons = document.querySelectorAll('.btn:not(#eval-btn):not(#backspace-btn):not(#paren-btn)');
             regularButtons.forEach(button => {
                 button.addEventListener('click', function() {
                     const value = this.getAttribute('data-value');
                     if (value) {
-                        input.value += value;
+                        insertAtCursor(input, value);
                     }
                 });
             });
             
             // Handler for backspace button
             backspaceBtn.addEventListener('click', function() {
-                input.value = input.value.slice(0, -1);
+                const cursorPos = input.selectionStart;
+                if (cursorPos > 0) {
+                    const value = input.value;
+                    input.value = value.slice(0, cursorPos - 1) + value.slice(cursorPos);
+                    input.setSelectionRange(cursorPos - 1, cursorPos - 1);
+                }
+            });
+            
+            // Handler for parentheses button
+            parenBtn.addEventListener('click', function() {
+                handleParentheses(input);
             });
             
             // Handler for evaluate button
@@ -239,6 +258,61 @@
                     submitExpression(input.value);
                 }
             });
+            
+            function insertAtCursor(input, text) {
+                const cursorPos = input.selectionStart;
+                const value = input.value;
+                input.value = value.slice(0, cursorPos) + text + value.slice(cursorPos);
+                input.setSelectionRange(cursorPos + text.length, cursorPos + text.length);
+            }
+            
+            function handleParentheses(input) {
+                const text = input.value;
+                const cursorPos = input.selectionStart;
+                
+                // Count unpaired parentheses
+                let openCount = 0;
+                let closeCount = 0;
+                for (let i = 0; i < text.length; i++) {
+                    if (text[i] === '(') openCount++;
+                    if (text[i] === ')') closeCount++;
+                }
+                
+                const unpairedLeft = openCount - closeCount;
+                
+                if (unpairedLeft > 0) {
+                    // There are unpaired left parentheses, insert right paren
+                    insertAtCursor(input, ')');
+                    parenMode = 0; // Switch to mode 0
+                } else if (unpairedLeft < 0) {
+                    // There are unpaired right parentheses, insert left paren
+                    insertAtCursor(input, '(');
+                    parenMode = 1; // Switch to mode 1
+                } else {
+                    // All parentheses are paired, use current mode
+                    if (parenMode === 0) {
+                        // Mode 0: Insert pair and move cursor between them
+                        const beforeCursor = text.slice(0, cursorPos);
+                        const afterCursor = text.slice(cursorPos);
+                        input.value = beforeCursor + '()' + afterCursor;
+                        input.setSelectionRange(cursorPos + 1, cursorPos + 1); // Between the parens
+                        parenMode = 1; // Switch to mode 1
+                    } else {
+                        // Mode 1: Move cursor past the next right parenthesis
+                        const nextRightParen = text.indexOf(')', cursorPos);
+                        if (nextRightParen !== -1) {
+                            input.setSelectionRange(nextRightParen + 1, nextRightParen + 1);
+                        } else {
+                            // No right paren found, insert pair anyway
+                            const beforeCursor = text.slice(0, cursorPos);
+                            const afterCursor = text.slice(cursorPos);
+                            input.value = beforeCursor + '()' + afterCursor;
+                            input.setSelectionRange(cursorPos + 1, cursorPos + 1);
+                        }
+                        parenMode = 0; // Switch to mode 0
+                    }
+                }
+            }
         }
         
         function submitExpression(expression) {
