@@ -70,7 +70,9 @@ fn main() {
                                 println!("Expression: {}", expression);
                                 println!("{}", parse_tree);
                                 println!("Result: {}\n", array);
-                                array.to_string()
+                                
+                                // Include parse tree in the result for web display
+                                format!("{}\n\n{}", array, parse_tree)
                             }
                             Err(error) => {
                                 let error_text = format!("Error: {}", error);
