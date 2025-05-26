@@ -88,19 +88,19 @@ fn main() {
                                                 match evaluator.evaluate(&resolved_ast) {
                                                     Ok(result_array) => {
                                                         println!("Result: {}\n", result_array);
-                                                        format!("{}\n\n{}", result_array, parse_tree_text)
+                                                        format!("{}", result_array)
                                                     }
                                                     Err(eval_err) => {
                                                         let error_text = format!("Evaluation Error: {}", eval_err);
                                                         println!("{}\n", error_text);
-                                                        format!("{}\n\n{}", error_text, parse_tree_text)
+                                                        error_text
                                                     }
                                                 }
                                             }
                                             Err(semantic_err) => {
                                                 let error_text = format!("Semantic Error: {}", semantic_err);
                                                 println!("{}\n", error_text);
-                                                format!("{}\n\n{}", error_text, parse_tree_text)
+                                                error_text
                                             }
                                         }
                                     }
