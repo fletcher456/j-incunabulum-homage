@@ -102,6 +102,9 @@ impl JParser {
                 // Literal vector/scalar
                 Ok((JNode::Literal(jarray.clone()), pos + 1))
             }
+            Token::LeftParen | Token::RightParen => {
+                Err(ParseError::InvalidExpression("Parentheses not supported in old parser".to_string()))
+            }
         }
     }
 }
