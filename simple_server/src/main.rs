@@ -5,9 +5,15 @@ use std::sync::{Arc, Mutex};
 use tiny_http::{Server, Response, Header, Method, Request};
 use std::collections::VecDeque;
 
-// Import our J interpreter module
-mod j_interpreter;
-use j_interpreter::{JInterpreter, format_result};
+// Import our modular J interpreter modules
+mod j_array;
+mod tokenizer;
+mod parser;
+mod semantic_analyzer;
+mod evaluator;
+mod interpreter;
+
+use interpreter::{JInterpreter, format_result};
 
 // Store messages and J interpreter state in a thread-safe container
 struct AppState {
