@@ -138,7 +138,7 @@ mod tests {
                                 assert!(left_right.is_some());
                                 
                                 if let Some(ref left_arg) = *left_right {
-                                    match ***left_arg {
+                                    match **left_arg {
                                         JNode::Literal(ref array) => assert_eq!(array.data[0], 3),
                                         _ => panic!("Expected literal in left monadic"),
                                     }
@@ -157,7 +157,7 @@ mod tests {
                                 assert!(right_right.is_some());
                                 
                                 if let Some(ref right_arg) = *right_right {
-                                    match ***right_arg {
+                                    match **right_arg {
                                         JNode::Literal(ref array) => assert_eq!(array.data[0], 3),
                                         _ => panic!("Expected literal in right monadic"),
                                     }
