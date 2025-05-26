@@ -3,9 +3,10 @@
 
 use crate::j_array::JArray;
 use crate::tokenizer::{JTokenizer, TokenError};
-use crate::parser::{JParser, ParseError};
+use crate::parser::{JParser, ParseError, JNode};
 use crate::semantic_analyzer::{JSemanticAnalyzer, SemanticError};
 use crate::evaluator::{JEvaluator, EvaluationError};
+use crate::visualizer::ParseTreeVisualizer;
 use std::fmt;
 
 // Unified interpreter error type
@@ -59,6 +60,7 @@ pub struct JInterpreter {
     parser: JParser,
     semantic_analyzer: JSemanticAnalyzer,
     evaluator: JEvaluator,
+    visualizer: ParseTreeVisualizer,
 }
 
 impl JInterpreter {
@@ -69,16 +71,26 @@ impl JInterpreter {
             parser: JParser::new(),
             semantic_analyzer: JSemanticAnalyzer::new(),
             evaluator: JEvaluator::new(),
+            visualizer: ParseTreeVisualizer::new(),
         }
     }
 
     // Execute a J expression through the complete pipeline
     pub fn execute(&self, input: &str) -> Result<JArray, InterpreterError> {
+        let (result, _) = self.execute_with_debug(input)?;
+        Ok(result)
+    }
+
+    // Execute with debug information including parse tree visualization
+    pub fn execute_with_debug(&self, input: &str) -> Result<(JArray, String), InterpreterError> {
         // Phase 1: Tokenization
         let tokens = self.tokenizer.tokenize(input)?;
         
         // Phase 2: Parsing
         let ast = self.parser.parse(tokens)?;
+        
+        // Generate parse tree visualization
+        let parse_tree_text = format!("Parse Tree:\n{}", self.visualizer.visualize(&ast));
         
         // Phase 3: Semantic Analysis
         let resolved_ast = self.semantic_analyzer.analyze(ast)?;
@@ -86,7 +98,7 @@ impl JInterpreter {
         // Phase 4: Evaluation
         let result = self.evaluator.evaluate(&resolved_ast)?;
         
-        Ok(result)
+        Ok((result, parse_tree_text))
     }
 }
 

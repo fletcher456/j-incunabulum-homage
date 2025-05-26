@@ -12,8 +12,10 @@ mod parser;
 mod semantic_analyzer;
 mod evaluator;
 mod interpreter;
+mod visualizer;
 
 use interpreter::{JInterpreter, format_result};
+use visualizer::ParseTreeVisualizer;
 
 // Store messages and J interpreter state in a thread-safe container
 struct AppState {
@@ -59,9 +61,24 @@ fn main() {
                         // URL decode the J expression
                         let expression = url_decode(expression);
                         
-                        // Evaluate the J expression
-                        let result = state.j_interpreter.execute(&expression);
-                        let formatted_result = format_result(result);
+                        // Evaluate the J expression with debug info
+                        let result = state.j_interpreter.execute_with_debug(&expression);
+                        
+                        let formatted_result = match &result {
+                            Ok((array, parse_tree)) => {
+                                // Print parse tree to console for debugging
+                                println!("Expression: {}", expression);
+                                println!("{}", parse_tree);
+                                println!("Result: {}\n", array);
+                                array.to_string()
+                            }
+                            Err(error) => {
+                                let error_text = format!("Error: {}", error);
+                                println!("Expression: {}", expression);
+                                println!("{}\n", error_text);
+                                error_text
+                            }
+                        };
                         
                         // Return JSON response
                         let json_response = format!(
