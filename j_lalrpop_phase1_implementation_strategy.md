@@ -333,9 +333,9 @@ mod tests {
     #[test]
     fn test_critical_precedence_case() {
         // This is our critical test case
-        let (result, viz) = parse_and_visualize("~3+~3");
+        let (result, viz) = parse_and_visualize("\~3+\~3");
         
-        println!("CRITICAL TEST - ~3+~3 parsing:");
+        println!("CRITICAL TEST - \\~3+\\~3 parsing:");
         println!("{}", viz);
         
         assert!(result.is_ok());
@@ -345,10 +345,10 @@ mod tests {
                 JNode::DyadicVerb(verb, left, right) => {
                     assert_eq!(verb, '+');
                     
-                    // Verify left side is MonadicVerb(~, 3)
+                    // Verify left side is MonadicVerb(\~, 3)
                     match **left {
                         JNode::MonadicVerb(left_verb, ref left_arg) => {
-                            assert_eq!(left_verb, '~');
+                            assert_eq!(left_verb, '\~');
                             match ***left_arg {
                                 JNode::Literal(ref array) => assert_eq!(array.data[0], 3),
                                 _ => panic!("Expected literal in left monadic"),
@@ -357,10 +357,10 @@ mod tests {
                         _ => panic!("Expected monadic verb on left side"),
                     }
                     
-                    // Verify right side is MonadicVerb(~, 3)
+                    // Verify right side is MonadicVerb(\~, 3)
                     match **right {
                         JNode::MonadicVerb(right_verb, ref right_arg) => {
-                            assert_eq!(right_verb, '~');
+                            assert_eq!(right_verb, '\~');
                             match ***right_arg {
                                 JNode::Literal(ref array) => assert_eq!(array.data[0], 3),
                                 _ => panic!("Expected literal in right monadic"),

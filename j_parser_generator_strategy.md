@@ -2,7 +2,7 @@
 
 ## Overview
 
-Our current J interpreter has identified a critical parsing issue: expressions like `~3+~3` are being parsed as `~(3+~3)` instead of the correct `(~3)+(~3)`. This happens because our hand-written recursive descent parser doesn't properly implement the formal EBNF grammar we designed for J's context-sensitive expressions.
+Our current J interpreter has identified a critical parsing issue: expressions like `\~3+\~3` are being parsed as `\~(3+\~3)` instead of the correct `(\~3)+(\~3)`. This happens because our hand-written recursive descent parser doesn't properly implement the formal EBNF grammar we designed for J's context-sensitive expressions.
 
 ## The Problem
 
@@ -13,21 +13,21 @@ Our current J interpreter has identified a critical parsing issue: expressions l
 
 ### Evidence from Parse Trees
 ```
-Expression: ~3+~3
+Expression: \~3+\~3
 Current Parse Tree:
-AmbiguousVerb: '~'
+AmbiguousVerb: '\~'
 Right:
   AmbiguousVerb: '+'
   Left:
     Literal: 3
   Right:
-    AmbiguousVerb: '~'
+    AmbiguousVerb: '\~'
     Right:
       Literal: 3
 Result: 0 1 2  (WRONG - should be 0 2 4)
 ```
 
-The issue is clear: `~3+~3` should parse as two separate monadic operations joined by dyadic addition, not as a single monadic operation on the result of `3+~3`.
+The issue is clear: `\~3+\~3` should parse as two separate monadic operations joined by dyadic addition, not as a single monadic operation on the result of `3+\~3`.
 
 ## Proposed Solution: Custom Parser Generator
 

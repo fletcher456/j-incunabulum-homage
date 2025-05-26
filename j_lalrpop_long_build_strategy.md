@@ -114,7 +114,7 @@ lalrpop = { version = "0.20", default-features = false }
 - ✅ Integration tests pass
 
 ### Functional Success Indicators
-- ✅ `~3+~3` parses as `(~3)+(~3)` not `~(3+~3)`
+- ✅ `\~3+\~3` parses as `(\~3)+(\~3)` not `\~(3+\~3)`
 - ✅ All existing expressions continue working
 - ✅ Performance meets or exceeds current parser
 - ✅ Error messages are clear and actionable
