@@ -322,6 +322,7 @@ impl JInterpreter {
     
     // Bottom-up parsing with backtracking
     fn parse_with_backtracking(&self, tokens: Vec<Token>) -> Result<JNode, String> {
+        println!("DEBUG: Parsing tokens: {:?}", tokens);
         let mut backtrack_count = 0;
         let max_backtrack = 10;
         
@@ -331,9 +332,11 @@ impl JInterpreter {
         while right_pos > 0 && backtrack_count < max_backtrack {
             // Try to parse the rightmost part first
             let right_tokens = &tokens[tokens.len().saturating_sub(right_pos)..];
+            println!("DEBUG: Trying to parse right tokens: {:?}", right_tokens);
             let right_result = self.parse_subexpression(right_tokens);
             
             if let Ok(right_node) = right_result {
+                println!("DEBUG: Successfully parsed right side: {:?}", right_node);
                 // If we parsed the entire expression, we're done
                 if right_tokens.len() == tokens.len() {
                     return Ok(right_node);
@@ -345,22 +348,30 @@ impl JInterpreter {
                     // We have a verb before the right expression, try to parse the left side
                     let verb_pos = left_end - 1;
                     let verb = if let Token::Verb(v) = tokens[verb_pos] { v } else { '+' }; // Default shouldn't happen
+                    println!("DEBUG: Found verb '{}' at position {}", verb, verb_pos);
                     
                     if verb_pos > 0 {
                         let left_tokens = &tokens[0..verb_pos];
+                        println!("DEBUG: Trying to parse left tokens: {:?}", left_tokens);
                         let left_result = self.parse_subexpression(left_tokens);
                         
                         if let Ok(left_node) = left_result {
+                            println!("DEBUG: Successfully parsed left side: {:?}", left_node);
                             // We successfully parsed a dyadic operation
                             return Ok(JNode::DyadicVerb(verb, Box::new(left_node), Box::new(right_node)));
+                        } else {
+                            println!("DEBUG: Failed to parse left side: {:?}", left_result);
                         }
                     }
                 }
+            } else {
+                println!("DEBUG: Failed to parse right side: {:?}", right_result);
             }
             
             // Backtrack by trying to parse a smaller part from the right
             right_pos -= 1;
             backtrack_count += 1;
+            println!("DEBUG: Backtracking, new right_pos: {}", right_pos);
         }
         
         if backtrack_count >= max_backtrack {
