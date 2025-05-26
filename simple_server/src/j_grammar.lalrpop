@@ -9,30 +9,31 @@ pub JExpression: JNode = {
 };
 
 Expression: JNode = {
-    DyadicExpr,
-    MonadicExpr,
-    Term,
+    DyadicLevel,
 };
 
-DyadicExpr: JNode = {
-    <left:MonadicExpr> <verb:Verb> <right:Expression> => {
+// Right-associative dyadic operators (lower precedence)
+DyadicLevel: JNode = {
+    <left:MonadicLevel> <verb:Verb> <right:DyadicLevel> => {
         JNode::AmbiguousVerb(verb, Some(Box::new(left)), Some(Box::new(right)))
     },
-    <left:Term> <verb:Verb> <right:Expression> => {
-        JNode::AmbiguousVerb(verb, Some(Box::new(left)), Some(Box::new(right)))
-    },
+    MonadicLevel,
 };
 
-MonadicExpr: JNode = {
-    <verb:Verb> <expr:Term> => {
-        JNode::AmbiguousVerb(verb, None, Some(Box::new(expr)))
+// Left-associative monadic operators (higher precedence)
+MonadicLevel: JNode = {
+    <verb:Verb> <right:MonadicLevel> => {
+        JNode::AmbiguousVerb(verb, None, Some(Box::new(right)))
     },
+    Atom,
 };
 
-Term: JNode = {
+Atom: JNode = {
     Vector => JNode::Literal(<>),
     "(" <Expression> ")",
 };
+
+
 
 // Unified verb definition
 Verb: char = {
