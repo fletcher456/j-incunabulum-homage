@@ -1,0 +1,75 @@
+use crate::j_array::JArray;
+use crate::parser::JNode;
+use crate::tokenizer::Token;
+
+grammar;
+
+// Precedence declarations (lowest to highest precedence)
+// Higher precedence = tighter binding
+%right DYADIC;      // Dyadic operators (lower precedence)
+%right MONADIC;     // Monadic operators (higher precedence)
+
+pub JExpression: JNode = {
+    Expression,
+};
+
+Expression: JNode = {
+    // Dyadic expression (lower precedence)
+    <left:Expression> <verb:DyadicVerb> <right:Expression> %prec DYADIC => {
+        JNode::AmbiguousVerb(verb, Some(Box::new(left)), Some(Box::new(right)))
+    },
+    
+    // Monadic expression (higher precedence)
+    <verb:MonadicVerb> <expr:Expression> %prec MONADIC => {
+        JNode::AmbiguousVerb(verb, None, Some(Box::new(expr)))
+    },
+    
+    // Base terms
+    Term,
+};
+
+Term: JNode = {
+    Vector => JNode::Literal(<>),
+    "(" <Expression> ")",
+};
+
+// Define verbs with explicit precedence
+DyadicVerb: char = {
+    "+" => '+',
+    "~" => '~',
+    "#" => '#',
+    "<" => '<',
+    "{" => '{',
+    "," => ',',
+};
+
+MonadicVerb: char = {
+    "+" => '+',
+    "~" => '~',
+    "#" => '#',
+    "<" => '<',
+    "{" => '{',
+    "," => ',',
+};
+
+// Token conversion rules
+Vector: JArray = {
+    <t:VectorToken> => t,
+};
+
+extern {
+    type Location = usize;
+    type Error = String;
+    
+    enum Token {
+        VectorToken => Token::Vector(<JArray>),
+        "+" => Token::Verb('+'),
+        "~" => Token::Verb('~'),
+        "#" => Token::Verb('#'),
+        "<" => Token::Verb('<'),
+        "{" => Token::Verb('{'),
+        "," => Token::Verb(','),
+        "(" => Token::LeftParen,
+        ")" => Token::RightParen,
+    }
+}

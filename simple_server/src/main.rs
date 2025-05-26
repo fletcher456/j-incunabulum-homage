@@ -9,6 +9,8 @@ use std::collections::VecDeque;
 mod j_array;
 mod tokenizer;
 mod parser;
+mod lalr_parser;
+mod lalr_parser_test;
 mod semantic_analyzer;
 mod evaluator;
 mod interpreter;

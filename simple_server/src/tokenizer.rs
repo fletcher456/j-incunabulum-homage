@@ -9,6 +9,8 @@ use std::fmt;
 pub enum Token {
     Vector(JArray),
     Verb(char),
+    LeftParen,
+    RightParen,
 }
 
 // Tokenization errors
@@ -114,6 +116,14 @@ impl JTokenizer {
                 },
                 '+' | '~' | '#' | '<' | '{' | ',' => {
                     tokens.push(Token::Verb(c));
+                    chars.next();
+                },
+                '(' => {
+                    tokens.push(Token::LeftParen);
+                    chars.next();
+                },
+                ')' => {
+                    tokens.push(Token::RightParen);
                     chars.next();
                 },
                 ' ' => {
