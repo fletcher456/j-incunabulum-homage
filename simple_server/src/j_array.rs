@@ -374,6 +374,7 @@ impl fmt::Display for JArray {
                     .map(|v| format!("{}", v).len())
                     .max()
                     .unwrap_or(1);
+                println!("Debug: max_width = {}", max_width);
                 
                 for row in 0..rows {
                     for col in 0..cols {
