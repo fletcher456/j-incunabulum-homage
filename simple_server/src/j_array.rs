@@ -365,16 +365,25 @@ impl fmt::Display for JArray {
                 write!(f, "{}", values.join(" "))
             }
             2 => {
-                // Matrix
+                // Matrix with proper alignment
                 let rows = self.shape.dimensions[0];
                 let cols = self.shape.dimensions[1];
+                
+                // Find the maximum width needed for any number
+                let max_width = self.data.iter()
+                    .map(|v| format!("{}", v).len())
+                    .max()
+                    .unwrap_or(1);
                 
                 for row in 0..rows {
                     for col in 0..cols {
                         let index = row * cols + col;
-                        write!(f, "{}", self.data[index])?;
-                        if col < cols - 1 {
-                            write!(f, " ")?;
+                        if col == 0 {
+                            // Right-align the first number in each row (no leading space)
+                            write!(f, "{:>width$}", self.data[index], width = max_width)?;
+                        } else {
+                            // Right-align subsequent numbers with a space separator
+                            write!(f, " {:>width$}", self.data[index], width = max_width)?;
                         }
                     }
                     if row < rows - 1 {
