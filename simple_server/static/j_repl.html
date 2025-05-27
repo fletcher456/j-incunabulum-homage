@@ -355,7 +355,17 @@
             
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message ' + className;
-            messageDiv.textContent = text;
+            
+            // If this looks like a matrix (multiple lines with numbers), wrap in <pre>
+            if (className === 'output' && text.includes('\n') && /\d/.test(text)) {
+                const preElement = document.createElement('pre');
+                preElement.textContent = text;
+                preElement.style.margin = '0';
+                preElement.style.fontFamily = 'monospace';
+                messageDiv.appendChild(preElement);
+            } else {
+                messageDiv.textContent = text;
+            }
             
             messageContainer.appendChild(messageDiv);
         }
