@@ -124,7 +124,7 @@ fn main() {
                         // Return JSON response
                         let json_response = format!(
                             "{{\"result\": \"{}\"}}",
-                            formatted_result.replace('"', "\\\"").replace('\n', "\\n").replace(' ', "&nbsp;")
+                            formatted_result.replace('"', "\\\"").replace('\n', "\\n").replace(' ', "\u{00A0}")
                         );
                         
                         let header = Header::from_bytes("Content-Type", "application/json").unwrap();
