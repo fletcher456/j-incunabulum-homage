@@ -1,7 +1,7 @@
-// J Evaluator Module
-// Expression evaluation and J verb implementation
+// J Evaluator Module - Enhanced for All Operators
+// Expression evaluation and J verb implementation with full operator support
 
-use crate::j_array::{JArray, JType};
+use crate::j_array::{JArray, JValue, ArrayShape, ArrayError};
 use crate::parser::JNode;
 use std::fmt;
 
@@ -12,6 +12,13 @@ pub enum EvaluationError {
     DimensionMismatch(String),
     DomainError(String),
     RankError(String),
+    ArrayError(ArrayError),
+}
+
+impl From<ArrayError> for EvaluationError {
+    fn from(err: ArrayError) -> Self {
+        EvaluationError::ArrayError(err)
+    }
 }
 
 impl fmt::Display for EvaluationError {
@@ -29,9 +36,14 @@ impl fmt::Display for EvaluationError {
             EvaluationError::RankError(msg) => {
                 write!(f, "Rank error: {}", msg)
             }
+            EvaluationError::ArrayError(err) => {
+                write!(f, "Array error: {}", err)
+            }
         }
     }
 }
+
+impl std::error::Error for EvaluationError {}
 
 // J Evaluator
 pub struct JEvaluator;
@@ -50,8 +62,11 @@ impl JEvaluator {
                 let arg_value = self.evaluate(arg)?;
                 
                 match verb {
-                    '~' => self.iota(arg_value.data[0]),
+                    '~' => self.iota(&arg_value),
                     '+' => self.plus_monadic(&arg_value),
+                    '#' => self.tally(&arg_value),
+                    ',' => self.ravel(&arg_value),
+                    '<' => self.box_verb(&arg_value),
                     _ => Err(EvaluationError::UnsupportedVerb(
                         *verb, 
                         "Monadic form not implemented".to_string()
@@ -65,6 +80,10 @@ impl JEvaluator {
                 
                 match verb {
                     '+' => self.plus_dyadic(&left_value, &right_value),
+                    '#' => self.reshape(&left_value, &right_value),
+                    '{' => self.from_verb(&left_value, &right_value),
+                    ',' => self.concatenate(&left_value, &right_value),
+                    '<' => self.less_than(&left_value, &right_value),
                     _ => Err(EvaluationError::UnsupportedVerb(
                         *verb, 
                         "Dyadic form not implemented".to_string()
@@ -80,81 +99,176 @@ impl JEvaluator {
         }
     }
 
-    // Iota verb: Generate a sequence of integers from 0 to n-1
-    fn iota(&self, n: i64) -> Result<JArray, EvaluationError> {
+    // MONADIC VERBS
+
+    // Iota verb (~): Generate a sequence of integers from 0 to n-1
+    fn iota(&self, array: &JArray) -> Result<JArray, EvaluationError> {
+        if !array.is_scalar() {
+            return Err(EvaluationError::DomainError(
+                "iota requires a scalar argument".to_string()
+            ));
+        }
+        
+        let n = array.data[0].to_integer()
+            .ok_or(EvaluationError::DomainError("iota requires integer argument".to_string()))?;
+        
         if n < 0 {
             return Err(EvaluationError::DomainError(
                 "iota requires a non-negative argument".to_string()
             ));
         }
         
-        let n_usize = n as usize;
-        let data: Vec<i64> = (0..n).collect();
-        
-        Ok(JArray::new_integer(1, vec![n_usize], data))
+        let data: Vec<i32> = (0..n).collect();
+        Ok(JArray::vector(data))
     }
     
-    // Plus verb (monadic): Identity function - returns the argument unchanged
+    // Plus verb (+): Identity function - returns the argument unchanged
     fn plus_monadic(&self, array: &JArray) -> Result<JArray, EvaluationError> {
         // Identity function just returns a clone of the input
         Ok(array.clone())
     }
-    
-    // Plus verb (dyadic): Element-wise addition
+
+    // Tally verb (#): Count number of elements along first axis
+    fn tally(&self, array: &JArray) -> Result<JArray, EvaluationError> {
+        let count = array.tally() as i32;
+        Ok(JArray::scalar(count))
+    }
+
+    // Ravel verb (,): Flatten array to vector
+    fn ravel(&self, array: &JArray) -> Result<JArray, EvaluationError> {
+        Ok(array.ravel())
+    }
+
+    // Box verb (<): Create boxed array
+    fn box_verb(&self, array: &JArray) -> Result<JArray, EvaluationError> {
+        Ok(JArray::box_array(array.clone()))
+    }
+
+    // DYADIC VERBS
+
+    // Plus verb (+): Element-wise addition
     fn plus_dyadic(&self, left: &JArray, right: &JArray) -> Result<JArray, EvaluationError> {
-        // For now, we'll only support scalar and vector additions
-        match (left.rank, right.rank) {
+        match (left.is_scalar(), right.is_scalar()) {
             // Scalar + Scalar
-            (0, 0) => {
-                let result = left.data[0] + right.data[0];
-                Ok(JArray::new_scalar(result))
+            (true, true) => {
+                let left_val = left.data[0].to_integer()
+                    .ok_or(EvaluationError::DomainError("Addition requires numeric values".to_string()))?;
+                let right_val = right.data[0].to_integer()
+                    .ok_or(EvaluationError::DomainError("Addition requires numeric values".to_string()))?;
+                Ok(JArray::scalar(left_val + right_val))
             }
             
             // Scalar + Vector
-            (0, 1) => {
-                let scalar = left.data[0];
-                let mut result_data = Vec::with_capacity(right.data.len());
-                
-                for &value in &right.data {
-                    result_data.push(scalar + value);
-                }
-                
-                Ok(JArray::new_integer(1, right.shape.clone(), result_data))
+            (true, false) => {
+                let scalar = left.data[0].to_integer()
+                    .ok_or(EvaluationError::DomainError("Addition requires numeric values".to_string()))?;
+                let result_data: Result<Vec<i32>, _> = right.data.iter()
+                    .map(|v| v.to_integer()
+                        .map(|i| scalar + i)
+                        .ok_or(EvaluationError::DomainError("Addition requires numeric values".to_string())))
+                    .collect();
+                Ok(JArray::vector(result_data?))
             }
             
             // Vector + Scalar
-            (1, 0) => {
-                let scalar = right.data[0];
-                let mut result_data = Vec::with_capacity(left.data.len());
-                
-                for &value in &left.data {
-                    result_data.push(value + scalar);
-                }
-                
-                Ok(JArray::new_integer(1, left.shape.clone(), result_data))
+            (false, true) => {
+                let scalar = right.data[0].to_integer()
+                    .ok_or(EvaluationError::DomainError("Addition requires numeric values".to_string()))?;
+                let result_data: Result<Vec<i32>, _> = left.data.iter()
+                    .map(|v| v.to_integer()
+                        .map(|i| i + scalar)
+                        .ok_or(EvaluationError::DomainError("Addition requires numeric values".to_string())))
+                    .collect();
+                Ok(JArray::vector(result_data?))
             }
             
-            // Vector + Vector (same length)
-            (1, 1) => {
-                if left.shape[0] != right.shape[0] {
+            // Vector + Vector
+            (false, false) => {
+                if left.shape.dimensions != right.shape.dimensions {
                     return Err(EvaluationError::DimensionMismatch(
-                        "vectors must have the same length for addition".to_string()
+                        "Arrays must have matching shapes for addition".to_string()
                     ));
                 }
                 
-                let mut result_data = Vec::with_capacity(left.data.len());
+                let result_data: Result<Vec<i32>, EvaluationError> = left.data.iter()
+                    .zip(right.data.iter())
+                    .map(|(l, r)| {
+                        let left_val = l.to_integer()
+                            .ok_or(EvaluationError::DomainError("Addition requires numeric values".to_string()))?;
+                        let right_val = r.to_integer()
+                            .ok_or(EvaluationError::DomainError("Addition requires numeric values".to_string()))?;
+                        Ok(left_val + right_val)
+                    })
+                    .collect();
                 
-                for i in 0..left.data.len() {
-                    result_data.push(left.data[i] + right.data[i]);
-                }
-                
-                Ok(JArray::new_integer(1, left.shape.clone(), result_data))
+                Ok(JArray {
+                    data: result_data?.into_iter().map(JValue::Integer).collect(),
+                    shape: left.shape.clone(),
+                })
+            }
+        }
+    }
+
+    // Reshape verb (#): Reshape array to new dimensions
+    fn reshape(&self, shape_array: &JArray, data_array: &JArray) -> Result<JArray, EvaluationError> {
+        // Extract shape dimensions
+        let new_dims: Result<Vec<usize>, _> = shape_array.data.iter()
+            .map(|v| v.to_integer()
+                .map(|i| i as usize)
+                .ok_or(EvaluationError::DomainError("Shape must contain integers".to_string())))
+            .collect();
+        
+        let new_shape = ArrayShape { dimensions: new_dims? };
+        Ok(data_array.reshape(new_shape)?)
+    }
+
+    // From verb ({): Index selection
+    fn from_verb(&self, indices: &JArray, source: &JArray) -> Result<JArray, EvaluationError> {
+        Ok(source.select_from(indices)?)
+    }
+
+    // Concatenate verb (,): Join arrays
+    fn concatenate(&self, left: &JArray, right: &JArray) -> Result<JArray, EvaluationError> {
+        Ok(left.concatenate(right)?)
+    }
+
+    // Less than verb (<): Element-wise comparison
+    fn less_than(&self, left: &JArray, right: &JArray) -> Result<JArray, EvaluationError> {
+        match (left.is_scalar(), right.is_scalar()) {
+            // Scalar < Scalar
+            (true, true) => {
+                let left_val = left.data[0].to_integer()
+                    .ok_or(EvaluationError::DomainError("Comparison requires numeric values".to_string()))?;
+                let right_val = right.data[0].to_integer()
+                    .ok_or(EvaluationError::DomainError("Comparison requires numeric values".to_string()))?;
+                Ok(JArray::scalar(if left_val < right_val { 1 } else { 0 }))
             }
             
-            // Unsupported rank combinations
-            _ => Err(EvaluationError::RankError(
-                "plus is only implemented for scalars and vectors".to_string()
-            )),
+            // Element-wise comparison for arrays
+            _ => {
+                // For simplicity, convert both to same shape if possible
+                if left.shape.total_elements() != right.shape.total_elements() {
+                    return Err(EvaluationError::DimensionMismatch(
+                        "Arrays must have compatible shapes for comparison".to_string()
+                    ));
+                }
+                
+                let result_data: Result<Vec<i32>, EvaluationError> = left.data.iter()
+                    .zip(right.data.iter())
+                    .map(|(l, r)| {
+                        let left_val = l.to_integer()
+                            .ok_or(EvaluationError::DomainError("Comparison requires numeric values".to_string()))?;
+                        let right_val = r.to_integer()
+                            .ok_or(EvaluationError::DomainError("Comparison requires numeric values".to_string()))?;
+                        Ok(if left_val < right_val { 1 } else { 0 })
+                    })
+                    .collect();
+                
+                Ok(JArray {
+                    data: result_data?.into_iter().map(JValue::Integer).collect(),
+                    shape: left.shape.clone(),
+                })
+            }
         }
     }
 }

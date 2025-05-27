@@ -15,6 +15,7 @@ mod semantic_analyzer;
 mod evaluator;
 mod interpreter;
 mod visualizer;
+mod test_suite;
 
 use interpreter::{JInterpreter, format_result};
 use visualizer::ParseTreeVisualizer;
