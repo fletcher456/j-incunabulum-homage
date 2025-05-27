@@ -66,13 +66,13 @@ impl ParseTreeVisualizer {
 
     // Format JArray for display
     fn format_array(&self, array: &JArray) -> String {
-        if array.rank == 0 {
+        if array.shape.rank() == 0 {
             format!("{}", array.data[0])
         } else {
             format!("[{}]", 
                 array.data
                     .iter()
-                    .map(|x| x.to_string())
+                    .map(|x| format!("{}", x))
                     .collect::<Vec<_>>()
                     .join(" ")
             )
