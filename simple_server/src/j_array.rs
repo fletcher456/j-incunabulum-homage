@@ -374,20 +374,19 @@ impl fmt::Display for JArray {
                     .map(|v| format!("{}", v).len())
                     .max()
                     .unwrap_or(1);
-                println!("Debug: max_width = {}", max_width);
                 
                 for row in 0..rows {
                     for col in 0..cols {
                         let index = row * cols + col;
                         let formatted_num = format!("{}", self.data[index]);
-                        let padded_num = format!("{:&>width$}", formatted_num, width = max_width);
+                        let padded_num = format!("{: >width$}", formatted_num, width = max_width);
                         
                         if col == 0 {
                             // First number in row
                             write!(f, "{}", padded_num)?;
                         } else {
-                            // Subsequent numbers with separator
-                            write!(f, "&{}", padded_num)?;
+                            // Subsequent numbers with space separator
+                            write!(f, " {}", padded_num)?;
                         }
                     }
                     if row < rows - 1 {
