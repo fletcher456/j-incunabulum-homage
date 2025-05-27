@@ -379,12 +379,15 @@ impl fmt::Display for JArray {
                 for row in 0..rows {
                     for col in 0..cols {
                         let index = row * cols + col;
+                        let formatted_num = format!("{}", self.data[index]);
+                        let padded_num = format!("{:&>width$}", formatted_num, width = max_width);
+                        
                         if col == 0 {
-                            // Right-align the first number in each row, padded with &
-                            write!(f, "{:&>width$}", self.data[index], width = max_width)?;
+                            // First number in row
+                            write!(f, "{}", padded_num)?;
                         } else {
-                            // Add separator then right-align subsequent numbers, padded with &
-                            write!(f, "&{:&>width$}", self.data[index], width = max_width)?;
+                            // Subsequent numbers with separator
+                            write!(f, "&{}", padded_num)?;
                         }
                     }
                     if row < rows - 1 {
