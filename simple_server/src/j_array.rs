@@ -261,10 +261,11 @@ impl JArray {
         if self.is_vector() && other.is_vector() {
             let mut result_data = self.data.clone();
             result_data.extend(other.data.clone());
+            let result_len = result_data.len();
             
             Ok(JArray {
                 data: result_data,
-                shape: ArrayShape::vector(result_data.len()),
+                shape: ArrayShape::vector(result_len),
             })
         } else if self.is_scalar() && other.is_scalar() {
             // Concatenate scalars into vector
