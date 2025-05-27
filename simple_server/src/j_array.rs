@@ -382,8 +382,8 @@ impl fmt::Display for JArray {
                             // Right-align the first number in each row (no leading space)
                             write!(f, "{:>width$}", self.data[index], width = max_width)?;
                         } else {
-                            // Right-align subsequent numbers with a space separator
-                            write!(f, " {:>width$}", self.data[index], width = max_width)?;
+                            // Right-align subsequent numbers with a non-breaking space separator
+                            write!(f, "\u{00A0}{:>width$}", self.data[index], width = max_width)?;
                         }
                     }
                     if row < rows - 1 {
