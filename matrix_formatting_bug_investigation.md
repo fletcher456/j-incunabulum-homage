@@ -109,7 +109,49 @@ format!("{}", result_array)
 ## Current Status
 - ✅ Matrix calculations are mathematically correct
 - ✅ Matrix structure is properly created (2D shape detected)
-- ❌ Matrix formatting alignment is not applied
+- ✅ Clean rebuild completed successfully
+- ❌ Matrix formatting alignment is still not applied
 - ❌ Display improvements not visible in web output
 
-The issue appears to be in the execution or compilation pipeline rather than the logic itself.
+## Bug Tracking Strategy
+
+### Step 1: Verify Display Implementation is Being Called
+**Action**: Add debug logging to the Display implementation to confirm it's being reached
+**Files**: `simple_server/src/j_array.rs` - Display trait implementation
+**Test**: Look for debug output when evaluating `4 4#~16`
+
+### Step 2: Check Matrix Detection Logic
+**Action**: Verify `self.shape.rank() == 2` condition is true for matrices
+**Files**: `simple_server/src/j_array.rs` - ArrayShape::rank() method
+**Test**: Ensure 2D arrays are detected as rank 2
+
+### Step 3: Trace Code Execution Path
+**Action**: Follow the exact path from evaluator output to web response
+**Files**: 
+- `simple_server/src/evaluator.rs` - Where JArray is created
+- `simple_server/src/main.rs` - Where format!("{}", result_array) is called
+**Test**: Verify no intermediate formatting is overriding Display
+
+### Step 4: Examine JValue vs JArray Display
+**Action**: Check if JValue Display is being called instead of JArray Display
+**Files**: `simple_server/src/j_array.rs` - Both JValue and JArray Display implementations
+**Test**: Ensure correct Display trait is invoked
+
+### Step 5: HTML/Web Interface Investigation
+**Action**: Check if HTML rendering is stripping formatting
+**Files**: `simple_server/static/j_repl.html` - Web interface
+**Test**: Verify `<pre>` tags preserve whitespace formatting
+
+### Expected Debugging Output Sequence:
+1. Add `println!("Matrix display called, rank: {}", self.shape.rank());` to Display
+2. Add `println!("Max width calculated: {}", max_width);` to width calculation
+3. Add `println!("Formatting row {}, col {}: '{}'", row, col, formatted_value);` to formatting loop
+
+### Root Cause Hypotheses (In Priority Order):
+1. **HTML Whitespace Collapse**: Web interface not preserving spaces
+2. **Wrong Display Implementation**: JValue Display overriding JArray Display  
+3. **Rank Detection Failure**: 2D arrays not detected as rank 2
+4. **Format String Issues**: Rust format specifiers not working as expected
+5. **Data Type Mismatch**: Integer vs JValue display inconsistency
+
+The issue persists after clean rebuild, indicating a logical rather than compilation problem.
