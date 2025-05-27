@@ -62,9 +62,13 @@
         .output {
             color: #006600;
             white-space: pre-wrap;
-            text-indent: 0;
+            text-indent: 0 !important;
             margin: 0;
             padding-left: 0;
+        }
+        .output * {
+            text-indent: 0 !important;
+            margin-left: 0 !important;
         }
         .error {
             color: #cc0000;

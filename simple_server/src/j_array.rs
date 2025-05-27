@@ -375,9 +375,6 @@ impl fmt::Display for JArray {
                     .max()
                     .unwrap_or(1);
                 
-                // Start with a newline to avoid first-line indent issues
-                writeln!(f)?;
-                
                 for row in 0..rows {
                     for col in 0..cols {
                         let index = row * cols + col;
