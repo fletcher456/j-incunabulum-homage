@@ -352,6 +352,7 @@ impl JArray {
 // Phase 5: Display and Formatting
 impl fmt::Display for JArray {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        println!("JArray Display called, rank: {}", self.shape.rank());
         match self.shape.rank() {
             0 => {
                 // Scalar
@@ -368,12 +369,14 @@ impl fmt::Display for JArray {
                 // Matrix with proper alignment
                 let rows = self.shape.dimensions[0];
                 let cols = self.shape.dimensions[1];
+                println!("Matrix detected: {}x{}", rows, cols);
                 
                 // Find the maximum width needed for any number
                 let max_width = self.data.iter()
                     .map(|v| format!("{}", v).len())
                     .max()
                     .unwrap_or(1);
+                println!("Max width calculated: {}", max_width);
                 
                 for row in 0..rows {
                     for col in 0..cols {
@@ -381,9 +384,11 @@ impl fmt::Display for JArray {
                         if col == 0 {
                             // Right-align the first number in each row (no leading space)
                             write!(f, "{:>width$}", self.data[index], width = max_width)?;
+                            println!("Row {}, Col {}: '{:>width$}'", row, col, self.data[index], width = max_width);
                         } else {
                             // Right-align subsequent numbers with a space separator
                             write!(f, " {:>width$}", self.data[index], width = max_width)?;
+                            println!("Row {}, Col {}: ' {:>width$}'", row, col, self.data[index], width = max_width);
                         }
                     }
                     if row < rows - 1 {
