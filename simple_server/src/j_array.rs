@@ -382,6 +382,7 @@ impl fmt::Display for JArray {
                         let padded_num = format!("{: >width$}", formatted_num, width = max_width);
                         
                         if col == 0 {
+                            if row != 0 { write!(f, "  ")?; } // fix indent issue
                             // First number in row
                             write!(f, "{}", padded_num)?;
                         } else {
