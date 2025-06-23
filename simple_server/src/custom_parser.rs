@@ -1,5 +1,5 @@
-// Custom Recursive Descent Parser - Phase 2 Implementation
-// Supports: literals, basic addition, and monadic operations (~, -)
+// Custom Recursive Descent Parser - Phase 3 Implementation
+// Supports: array literals, basic addition, and monadic operations (~, -)
 
 use crate::parser::{JNode, ParseError};
 use crate::tokenizer::Token;
@@ -42,7 +42,7 @@ impl CustomParser {
                 }
                 Token::Verb(op) => {
                     return Err(ParseError::NotImplemented(
-                        format!("Error: Operator '{}' not implemented in Phase 2", op)
+                        format!("Error: Operator '{}' not implemented in Phase 3", op)
                     ));
                 }
                 Token::Vector(_) => {
@@ -92,16 +92,10 @@ impl CustomParser {
         
         match &self.tokens[self.position] {
             Token::Vector(array) => {
-                // For Phase 1, only support single integer literals
-                if array.data.len() == 1 {
-                    let node = JNode::Literal(array.clone());
-                    self.position += 1;
-                    Ok(node)
-                } else {
-                    Err(ParseError::NotImplemented(
-                        "Error: Multi-element arrays not implemented in Phase 1".to_string()
-                    ))
-                }
+                // Phase 3: Accept all vector sizes
+                let node = JNode::Literal(array.clone());
+                self.position += 1;
+                Ok(node)
             }
             Token::Verb('~') | Token::Verb('-') => {
                 Err(ParseError::NotImplemented(
