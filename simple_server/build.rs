@@ -1,3 +1,7 @@
+// Only run LALRPOP parser generation for native builds
 fn main() {
-    lalrpop::process_root().unwrap();
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        lalrpop::process_root().unwrap();
+    }
 }

@@ -15,5 +15,6 @@ lalrpop-util = "0.20"
 wasm-bindgen = "0.2"
 console_error_panic_hook = "0.1"
 
-[build-dependencies]
+# Only compile LALRPOP generator for native targets
+[target.'cfg(not(target_arch = "wasm32"))'.build-dependencies]
 lalrpop = "0.20"
