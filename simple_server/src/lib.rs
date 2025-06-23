@@ -6,39 +6,15 @@ pub mod semantic_analyzer;
 pub mod evaluator;
 pub mod j_array;
 pub mod parser;
-pub mod lalr_parser_test;
+
 pub mod test_suite;
 pub mod visualizer;
 
-// Conditional LALRPOP parser inclusion
-#[cfg(not(target_arch = "wasm32"))]
-pub mod lalr_parser;
-
-#[cfg(target_arch = "wasm32")]
-mod j_grammar_generated;
-
-#[cfg(target_arch = "wasm32")]
-pub mod lalr_parser {
-    use crate::j_grammar_generated;
-    
-    pub struct LalrParser;
-    
-    impl LalrParser {
-        pub fn new() -> Self {
-            LalrParser
-        }
-        
-        pub fn parse(&self, tokens: Vec<crate::tokenizer::Token>) -> Result<crate::parser::JNode, String> {
-            // Use the generated parser directly with tokens
-            j_grammar_generated::JExpressionParser::new()
-                .parse(tokens.into_iter())
-                .map_err(|e| format!("Parse error: {:?}", e))
-        }
-    }
-}
+// Custom parser module
+pub mod custom_parser;
 
 use tokenizer::JTokenizer;
-use lalr_parser::LalrParser;
+use custom_parser::CustomParser;
 use semantic_analyzer::JSemanticAnalyzer;
 use evaluator::JEvaluator;
 
@@ -53,15 +29,15 @@ pub fn handle_j_eval_request(request_body: &str) -> String {
         None => return r#"{"result": "Error: Invalid request format"}"#.to_string(),
     };
     
-    // Use existing evaluation pipeline (unchanged)
+    // Use existing evaluation pipeline with custom parser
     let tokenizer = JTokenizer::new();
-    let lalr_parser = LalrParser::new();
+    let mut custom_parser = CustomParser::new();
     let semantic_analyzer = JSemanticAnalyzer::new();
     let evaluator = JEvaluator::new();
     
     let result = match tokenizer.tokenize(&expression) {
         Ok(tokens) => {
-            match lalr_parser.parse(tokens) {
+            match custom_parser.parse(tokens) {
                 Ok(ast) => {
                     match semantic_analyzer.analyze(ast) {
                         Ok(resolved_ast) => {

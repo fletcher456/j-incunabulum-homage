@@ -11,8 +11,8 @@ mod j_array;
 mod tokenizer;
 mod parser;
 mod custom_parser;
-mod lalr_parser;
-mod lalr_parser_test;
+
+
 mod semantic_analyzer;
 mod evaluator;
 mod interpreter;
@@ -21,7 +21,7 @@ mod test_suite;
 
 use interpreter::{JInterpreter, format_result};
 use visualizer::ParseTreeVisualizer;
-use lalr_parser::LalrParser;
+
 use custom_parser::CustomParser;
 use tokenizer::JTokenizer;
 use semantic_analyzer::JSemanticAnalyzer;
@@ -97,21 +97,15 @@ fn main() {
                         
                     let formatted_result = match tokenizer.tokenize(&expression) {
                         Ok(tokens) => {
-                            let ast_result = match parser_choice {
-                                "custom" => {
-                                    let mut custom_parser = CustomParser::new();
-                                    custom_parser.parse(tokens)
-                                }
-                                _ => {
-                                    let lalr_parser = LalrParser::new();
-                                    lalr_parser.parse(tokens)
-                                }
+                            let ast_result = {
+                                let mut custom_parser = CustomParser::new();
+                                custom_parser.parse(tokens)
                             };
                             
                             match ast_result {
                                 Ok(ast) => {
                                     let parse_tree_text = format!("{} Parse Tree:\n{}", 
-                                        if parser_choice == "custom" { "Custom" } else { "LALRPOP" },
+                                        if parser_choice == "custom" { "Custom" } else { "Custom" },
                                         visualizer.visualize(&ast));
                                     
                                     println!("Expression: {}", expression);
@@ -140,7 +134,7 @@ fn main() {
                                 }
                                 Err(parse_err) => {
                                     let error_text = format!("{} Parse Error: {}", 
-                                        if parser_choice == "custom" { "Custom" } else { "LALRPOP" },
+                                        if parser_choice == "custom" { "Custom" } else { "Custom" },
                                         parse_err);
                                     println!("Expression: {}", expression);
                                     println!("{}\n", error_text);
