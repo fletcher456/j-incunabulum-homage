@@ -1,5 +1,5 @@
-// Custom Recursive Descent Parser - Phase 4 Implementation
-// Supports: array literals, basic addition, monadic operations (~, -), and J array operators (#, {, ,, <)
+// Custom Recursive Descent Parser - Phase 5 Implementation
+// Supports: array literals, basic addition, monadic operations (~, -), J array operators (#, {, ,, <), and parentheses
 
 use crate::parser::{JNode, ParseError};
 use crate::tokenizer::Token;
@@ -42,7 +42,7 @@ impl CustomParser {
                 }
                 Token::Verb(op) => {
                     return Err(ParseError::NotImplemented(
-                        format!("Error: Operator '{}' not implemented in Phase 4", op)
+                        format!("Error: Operator '{}' not implemented in Phase 5", op)
                     ));
                 }
                 _ => break,
@@ -100,66 +100,87 @@ impl CustomParser {
             match &self.tokens[self.position] {
                 Token::Verb('~') => {
                     self.position += 1; // consume '~'
-                    let operand = self.parse_literal()?;
+                    let operand = self.parse_primary()?;
                     return Ok(JNode::AmbiguousVerb('~', None, Some(Box::new(operand))));
                 }
                 Token::Verb('-') => {
                     self.position += 1; // consume '-'
-                    let operand = self.parse_literal()?;
+                    let operand = self.parse_primary()?;
                     return Ok(JNode::AmbiguousVerb('-', None, Some(Box::new(operand))));
                 }
                 Token::Verb('#') => {
                     self.position += 1; // consume '#'
-                    let operand = self.parse_literal()?;
+                    let operand = self.parse_primary()?;
                     return Ok(JNode::AmbiguousVerb('#', None, Some(Box::new(operand))));
                 }
                 Token::Verb(',') => {
                     self.position += 1; // consume ','
-                    let operand = self.parse_literal()?;
+                    let operand = self.parse_primary()?;
                     return Ok(JNode::AmbiguousVerb(',', None, Some(Box::new(operand))));
                 }
                 Token::Verb('<') => {
                     self.position += 1; // consume '<'
-                    let operand = self.parse_literal()?;
+                    let operand = self.parse_primary()?;
                     return Ok(JNode::AmbiguousVerb('<', None, Some(Box::new(operand))));
                 }
                 Token::Verb('{') => {
                     self.position += 1; // consume '{'
-                    let operand = self.parse_literal()?;
+                    let operand = self.parse_primary()?;
                     return Ok(JNode::AmbiguousVerb('{', None, Some(Box::new(operand))));
                 }
                 _ => {}
             }
         }
         
-        // Fall back to literal parsing
-        self.parse_literal()
+        // Fall back to primary parsing
+        self.parse_primary()
     }
     
-    fn parse_literal(&mut self) -> Result<JNode, ParseError> {
+    fn parse_primary(&mut self) -> Result<JNode, ParseError> {
         if self.position >= self.tokens.len() {
             return Err(ParseError::NotImplemented(
-                "Error: Expected number but reached end of input".to_string()
+                "Error: Expected expression but reached end of input".to_string()
             ));
         }
         
         match &self.tokens[self.position] {
+            Token::LeftParen => {
+                self.position += 1; // consume '('
+                let expr = self.parse_expression()?;
+                
+                if self.position >= self.tokens.len() {
+                    return Err(ParseError::InvalidExpression(
+                        "Error: Missing closing parenthesis".to_string()
+                    ));
+                }
+                
+                match &self.tokens[self.position] {
+                    Token::RightParen => {
+                        self.position += 1; // consume ')'
+                        Ok(expr)
+                    }
+                    _ => Err(ParseError::InvalidExpression(
+                        "Error: Expected closing parenthesis".to_string()
+                    ))
+                }
+            }
             Token::Vector(array) => {
-                // Phase 3: Accept all vector sizes
                 let node = JNode::Literal(array.clone());
                 self.position += 1;
                 Ok(node)
             }
-            Token::Verb('~') | Token::Verb('-') => {
+            Token::Verb('~') | Token::Verb('-') | Token::Verb('#') | Token::Verb(',') | Token::Verb('<') | Token::Verb('{') => {
                 Err(ParseError::NotImplemented(
-                    "Error: Monadic operator found where literal expected".to_string()
+                    "Error: Operator found where literal expected".to_string()
                 ))
             }
             _ => {
                 Err(ParseError::NotImplemented(
-                    format!("Error: Expected number at position {}", self.position)
+                    format!("Error: Unexpected token at position {}", self.position)
                 ))
             }
         }
     }
+    
+
 }
