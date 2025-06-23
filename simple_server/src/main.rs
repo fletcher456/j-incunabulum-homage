@@ -79,7 +79,7 @@ fn main() {
                     });
                     
                     let expression = request_data["expression"].as_str().unwrap_or("");
-                    let parser_choice = request_data["parser"].as_str().unwrap_or("lalrpop");
+                    let _parser_choice = request_data["parser"].as_str().unwrap_or("custom"); // Always use custom
                     
                     if expression.is_empty() {
                         let error_response = r#"{"error": "No expression provided"}"#;
@@ -87,7 +87,7 @@ fn main() {
                         Response::from_string(error_response).with_header(header)
                     } else {
                         
-                    println!("Evaluating: {} (using {} parser)", expression, parser_choice);
+                    println!("Evaluating: {} (using custom parser)", expression);
                         
                     // Use appropriate parser with manual pipeline
                     let tokenizer = JTokenizer::new();
@@ -104,8 +104,7 @@ fn main() {
                             
                             match ast_result {
                                 Ok(ast) => {
-                                    let parse_tree_text = format!("{} Parse Tree:\n{}", 
-                                        if parser_choice == "custom" { "Custom" } else { "Custom" },
+                                    let parse_tree_text = format!("Custom Parse Tree:\n{}", 
                                         visualizer.visualize(&ast));
                                     
                                     println!("Expression: {}", expression);
@@ -133,9 +132,7 @@ fn main() {
                                     }
                                 }
                                 Err(parse_err) => {
-                                    let error_text = format!("{} Parse Error: {}", 
-                                        if parser_choice == "custom" { "Custom" } else { "Custom" },
-                                        parse_err);
+                                    let error_text = format!("Custom Parse Error: {}", parse_err);
                                     println!("Expression: {}", expression);
                                     println!("{}\n", error_text);
                                     error_text
