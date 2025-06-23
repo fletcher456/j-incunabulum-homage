@@ -59,7 +59,7 @@ jobs:
         env | grep -E "(CARGO|RUST|PATH)" | head -20
         
     - name: Cache cargo registry
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/registry
@@ -182,11 +182,10 @@ jobs:
         fi
         
     - name: Upload WASM artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: wasm-build-${{ github.sha }}
-        path: |
-          simple_server/static/pkg/
+        path: simple_server/static/pkg/
         retention-days: 30
         
     - name: Create deployment summary
