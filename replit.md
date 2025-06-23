@@ -7,7 +7,7 @@ Rust-based web server with J language interpreter implementing array programming
 - **Jun 23, 2025**: Successfully completed Phase 2 - Added monadic operations (~, -) with precedence framework
 - **Jun 23, 2025**: Verified Phase 2 functionality: "~3", "1+~3", "~3+1", "~3+~3" all working correctly
 - **Jun 23, 2025**: Confirmed proper precedence handling: monadic operations bind tighter than dyadic
-- **Jun 23, 2025**: Created comprehensive strategy document for remaining phases (Phase 3-6)
+- **Jun 23, 2025**: Created reorganized strategy document focusing on immediate phases (Array Literals, J Operators, Parentheses)
 - **Jun 23, 2025**: Successfully completed Phase 1 - Custom parser with literals and basic addition
 
 ## Project Architecture
@@ -41,7 +41,8 @@ Rust-based web server with J language interpreter implementing array programming
 - ✅ Phase 0: Custom parser stub with parser selection UI working
 - ✅ Phase 1: Custom parser supporting literals and addition operations (fully functional)
 - ✅ Phase 2: Monadic operations (~, -) with precedence framework (fully functional)
-- 🔄 Phase 3-6: Complete custom parser implementation roadmap (12.5 hours total)
+- 🔄 Phase 3-5: Array operations and parentheses support (6.5 hours total)
+- 📋 Future: Dyadic operator precedence when UI buttons are implemented
 
 ## User Preferences
 - Prioritize minimal complexity over minimal code
