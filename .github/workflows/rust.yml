@@ -81,12 +81,7 @@ jobs:
         echo "=== Dependencies Check ==="
         cargo tree --target wasm32-unknown-unknown || echo "Dependency tree failed"
         echo "=== WASM Build with Maximum Verbosity ==="
-        RUST_LOG=debug wasm-pack build \
-          --target web \
-          --out-dir static/pkg \
-          --dev \
-          --verbose \
-          -- --verbose
+        RUST_LOG=debug wasm-pack build --target web --out-dir static/pkg --dev --verbose -- --verbose
           
     - name: Verify WASM build output
       working-directory: simple_server
@@ -177,7 +172,7 @@ jobs:
         echo "=== Testing J Language Functions ==="
         if [ -f static/pkg/simple_server.js ]; then
           echo "JavaScript binding found, creating test..."
-          cat > test_wasm.js << 'EOF'
+          cat > test_wasm.js << 'EOFTEST'
 const fs = require('fs');
 const path = require('path');
 
@@ -226,7 +221,7 @@ async function testWasm() {
 }
 
 testWasm().catch(console.error);
-EOF
+EOFTEST
           
           if command -v node &> /dev/null; then
             node test_wasm.js
@@ -276,7 +271,7 @@ EOF
       if: failure()
       run: |
         echo "=== Failure Diagnostics ===" >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
         echo "Rust toolchain status:" >> $GITHUB_STEP_SUMMARY
         rustup show 2>&1 || echo "rustup failed" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
@@ -288,4 +283,4 @@ EOF
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "wasm-pack status:" >> $GITHUB_STEP_SUMMARY
         wasm-pack --version 2>&1 || echo "wasm-pack not found" >> $GITHUB_STEP_SUMMARY
-        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
