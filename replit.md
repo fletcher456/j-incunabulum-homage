@@ -4,10 +4,10 @@
 Rust-based web server with J language interpreter implementing array programming language features. Started as C webserver, evolved to full J interpreter with calculator interface and WASM deployment capability.
 
 ## Recent Changes
-- **Jun 23, 2025**: Completed isolated LALRPOP build analysis confirming fundamental WASM timeout issues
-- **Jun 23, 2025**: Validated WASM build optimization strategy with progressive compilation data
-- **Jun 23, 2025**: Confirmed hybrid LALRPOP compilation approach as technically sound solution
-- **Jun 23, 2025**: Documented comprehensive build performance metrics and timeout analysis
+- **Jun 23, 2025**: Discovered LALRPOP configuration issue - conditional exclusion not working for WASM builds
+- **Jun 23, 2025**: Completed LALRPOP-free build analysis revealing dependency leakage problem
+- **Jun 23, 2025**: Confirmed pre-generated parser approach is sound but needs dependency fixes
+- **Jun 23, 2025**: Documented comprehensive timeout analysis and configuration issues
 
 ## Project Architecture
 
