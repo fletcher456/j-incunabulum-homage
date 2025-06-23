@@ -1,6 +1,5 @@
 use std::fs::File;
 use std::io::Read;
-use serde_json;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tiny_http::{Server, Response, Header, Method, Request};
@@ -68,26 +67,15 @@ fn main() {
                     let body = String::from_utf8_lossy(&buffer);
                     println!("Received body: {}", body);
                     
-                    // Parse JSON request to get parser choice  
-                    let request_data: serde_json::Value = serde_json::from_str(&body).unwrap_or_else(|_| {
-                        // Fallback for legacy form data
-                        if let Some(expression) = body.strip_prefix("expression=") {
-                            serde_json::json!({"expression": url_decode(expression), "parser": "lalrpop"})
-                        } else {
-                            serde_json::json!({"expression": body.trim(), "parser": "lalrpop"})
-                        }
-                    });
+                    // Parse request body (JSON or form data)
+                    let (expression, _parser_choice) = parse_j_eval_request(&body);
                     
-                    let expression = request_data["expression"].as_str().unwrap_or("");
-                    let _parser_choice = request_data["parser"].as_str().unwrap_or("custom"); // Always use custom
-                    
-                    if expression.is_empty() {
+                    if expression.trim().is_empty() {
                         let error_response = r#"{"error": "No expression provided"}"#;
                         let header = Header::from_bytes("Content-Type", "application/json").unwrap();
                         Response::from_string(error_response).with_header(header)
                     } else {
-                        
-                    println!("Evaluating: {} (using custom parser)", expression);
+                        println!("Evaluating: {} (using custom parser)", expression);
                         
                     // Use appropriate parser with manual pipeline
                     let tokenizer = JTokenizer::new();
@@ -248,6 +236,48 @@ fn url_decode(input: &str) -> String {
     }
     
     result
+}
+
+// Manual JSON parsing functions to replace serde
+fn parse_j_eval_request(body: &str) -> (String, String) {
+    // Handle JSON format: {"expression": "...", "parser": "..."}
+    if body.trim_start().starts_with('{') {
+        let expression = extract_json_field(body, "expression").unwrap_or_default();
+        let parser = extract_json_field(body, "parser").unwrap_or("custom".to_string());
+        (expression, parser)
+    } else {
+        // Handle form data: expression=...
+        if let Some(expr) = body.strip_prefix("expression=") {
+            (url_decode(expr), "custom".to_string())
+        } else {
+            (body.trim().to_string(), "custom".to_string())
+        }
+    }
+}
+
+fn extract_json_field(json: &str, field: &str) -> Option<String> {
+    let field_pattern = format!(r#""{}""#, field);
+    if let Some(start) = json.find(&field_pattern) {
+        let after_field = &json[start + field_pattern.len()..];
+        if let Some(colon_pos) = after_field.find(':') {
+            let after_colon = after_field[colon_pos + 1..].trim_start();
+            if after_colon.starts_with('"') {
+                let content = &after_colon[1..];
+                if let Some(end_quote) = content.find('"') {
+                    return Some(json_unescape(&content[..end_quote]));
+                }
+            }
+        }
+    }
+    None
+}
+
+fn json_unescape(s: &str) -> String {
+    s.replace("\\\"", "\"")
+     .replace("\\\\", "\\")
+     .replace("\\n", "\n")
+     .replace("\\r", "\r")
+     .replace("\\t", "\t")
 }
 
 // Serve the J REPL page with messages
