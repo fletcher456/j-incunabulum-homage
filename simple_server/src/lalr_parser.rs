@@ -1,13 +1,19 @@
 // LALRPOP Generated Parser Wrapper
+#[cfg(not(target_arch = "wasm32"))]
 use crate::parser::{JNode, ParseError};
+#[cfg(not(target_arch = "wasm32"))]
 use crate::tokenizer::Token;
+#[cfg(not(target_arch = "wasm32"))]
 use lalrpop_util::lalrpop_mod;
 
 // Include the generated parser
+#[cfg(not(target_arch = "wasm32"))]
 lalrpop_mod!(pub j_grammar);
 
+#[cfg(not(target_arch = "wasm32"))]
 pub struct LalrParser;
 
+#[cfg(not(target_arch = "wasm32"))]
 impl LalrParser {
     pub fn new() -> Self {
         LalrParser
