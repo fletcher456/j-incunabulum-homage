@@ -84,86 +84,90 @@ fn main() {
                     if expression.is_empty() {
                         let error_response = r#"{"error": "No expression provided"}"#;
                         let header = Header::from_bytes("Content-Type", "application/json").unwrap();
-                        Response::from_string(error_response).with_header(header)
-                    } else {
+                        return Ok(Response::from_string(error_response).with_header(header));
+                    }
                         
-                    println!("Evaluating: {} (using {} parser)", expression, parser_choice);
+                        println!("Evaluating: {} (using {} parser)", expression, parser_choice);
                         
-                    // Use appropriate parser with manual pipeline
-                    let tokenizer = JTokenizer::new();
-                    let semantic_analyzer = JSemanticAnalyzer::new();
-                    let evaluator = JEvaluator::new();
-                    let visualizer = ParseTreeVisualizer::new();
+                        // Use appropriate parser with manual pipeline
+                        let tokenizer = JTokenizer::new();
+                        let semantic_analyzer = JSemanticAnalyzer::new();
+                        let evaluator = JEvaluator::new();
+                        let visualizer = ParseTreeVisualizer::new();
                         
-                    let formatted_result = match tokenizer.tokenize(&expression) {
-                        Ok(tokens) => {
-                            let ast_result = match parser_choice {
-                                "custom" => {
-                                    let custom_parser = CustomParser::new();
-                                    custom_parser.parse(tokens)
-                                }
-                                _ => {
-                                    let lalr_parser = LalrParser::new();
-                                    lalr_parser.parse(tokens)
-                                }
-                            };
-                            
-                            match ast_result {
-                                Ok(ast) => {
-                                    let parse_tree_text = format!("{} Parse Tree:\n{}", 
-                                        if parser_choice == "custom" { "Custom" } else { "LALRPOP" },
-                                        visualizer.visualize(&ast));
-                                    
-                                    println!("Expression: {}", expression);
-                                    println!("{}", parse_tree_text);
-                                    
-                                    match semantic_analyzer.analyze(ast) {
-                                        Ok(resolved_ast) => {
-                                            match evaluator.evaluate(&resolved_ast) {
-                                                Ok(result_array) => {
-                                                    println!("Result: {}\n", result_array);
-                                                    format!("{}", result_array)
-                                                }
-                                                Err(eval_err) => {
-                                                    let error_text = format!("Evaluation Error: {}", eval_err);
-                                                    println!("{}\n", error_text);
-                                                    error_text
+                        let formatted_result = match tokenizer.tokenize(&expression) {
+                            Ok(tokens) => {
+                                let ast_result = match parser_choice {
+                                    "custom" => {
+                                        let custom_parser = CustomParser::new();
+                                        custom_parser.parse(tokens)
+                                    }
+                                    _ => {
+                                        let lalr_parser = LalrParser::new();
+                                        lalr_parser.parse(tokens)
+                                    }
+                                };
+                                
+                                match ast_result {
+                                    Ok(ast) => {
+                                        let parse_tree_text = format!("{} Parse Tree:\n{}", 
+                                            if parser_choice == "custom" { "Custom" } else { "LALRPOP" },
+                                            visualizer.visualize(&ast));
+                                        
+                                        println!("Expression: {}", expression);
+                                        println!("{}", parse_tree_text);
+                                        
+                                        match semantic_analyzer.analyze(ast) {
+                                            Ok(resolved_ast) => {
+                                                match evaluator.evaluate(&resolved_ast) {
+                                                    Ok(result_array) => {
+                                                        println!("Result: {}\n", result_array);
+                                                        format!("{}", result_array)
+                                                    }
+                                                    Err(eval_err) => {
+                                                        let error_text = format!("Evaluation Error: {}", eval_err);
+                                                        println!("{}\n", error_text);
+                                                        error_text
+                                                    }
                                                 }
                                             }
-                                        }
-                                        Err(semantic_err) => {
-                                            let error_text = format!("Semantic Error: {}", semantic_err);
-                                            println!("{}\n", error_text);
-                                            error_text
+                                            Err(semantic_err) => {
+                                                let error_text = format!("Semantic Error: {}", semantic_err);
+                                                println!("{}\n", error_text);
+                                                error_text
+                                            }
                                         }
                                     }
-                                }
-                                Err(parse_err) => {
-                                    let error_text = format!("{} Parse Error: {}", 
-                                        if parser_choice == "custom" { "Custom" } else { "LALRPOP" },
-                                        parse_err);
-                                    println!("Expression: {}", expression);
-                                    println!("{}\n", error_text);
-                                    error_text
+                                    Err(parse_err) => {
+                                        let error_text = format!("{} Parse Error: {}", 
+                                            if parser_choice == "custom" { "Custom" } else { "LALRPOP" },
+                                            parse_err);
+                                        println!("Expression: {}", expression);
+                                        println!("{}\n", error_text);
+                                        error_text
+                                    }
                                 }
                             }
-                        }
-                        Err(token_err) => {
-                            let error_text = format!("Token Error: {}", token_err);
-                            println!("Expression: {}", expression);
-                            println!("{}\n", error_text);
-                            error_text
-                        }
-                    };
-                    
-                    // Return JSON response
-                    let json_response = format!(
-                        "{{\"result\": \"{}\"}}",
-                        formatted_result.replace('"', "\\\"").replace('\n', "\\n")
-                    );
-                    
-                    let header = Header::from_bytes("Content-Type", "application/json").unwrap();
-                    Response::from_string(json_response).with_header(header)
+                            Err(token_err) => {
+                                let error_text = format!("Token Error: {}", token_err);
+                                println!("Expression: {}", expression);
+                                println!("{}\n", error_text);
+                                error_text
+                            }
+                        };
+                        
+                        // Return JSON response
+                        let json_response = format!(
+                            "{{\"result\": \"{}\"}}",
+                            formatted_result.replace('"', "\\\"").replace('\n', "\\n")
+                        );
+                        
+                        let header = Header::from_bytes("Content-Type", "application/json").unwrap();
+                        Response::from_string(json_response).with_header(header)
+                    } else {
+                        let error_response = "{\"result\": \"Error: Invalid request format\"}";
+                        let header = Header::from_bytes("Content-Type", "application/json").unwrap();
+                        Response::from_string(error_response).with_header(header).with_status_code(400)
                     }
                 } else {
                     let error_response = "{\"result\": \"Error: Could not read request body\"}";
