@@ -96,6 +96,26 @@ impl CustomParser {
                     let operand = self.parse_literal()?;
                     return Ok(JNode::AmbiguousVerb('-', None, Some(Box::new(operand))));
                 }
+                Token::Verb('#') => {
+                    self.position += 1; // consume '#'
+                    let operand = self.parse_literal()?;
+                    return Ok(JNode::AmbiguousVerb('#', None, Some(Box::new(operand))));
+                }
+                Token::Verb(',') => {
+                    self.position += 1; // consume ','
+                    let operand = self.parse_literal()?;
+                    return Ok(JNode::AmbiguousVerb(',', None, Some(Box::new(operand))));
+                }
+                Token::Verb('<') => {
+                    self.position += 1; // consume '<'
+                    let operand = self.parse_literal()?;
+                    return Ok(JNode::AmbiguousVerb('<', None, Some(Box::new(operand))));
+                }
+                Token::Verb('{') => {
+                    self.position += 1; // consume '{'
+                    let operand = self.parse_literal()?;
+                    return Ok(JNode::AmbiguousVerb('{', None, Some(Box::new(operand))));
+                }
                 _ => {}
             }
         }
