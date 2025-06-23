@@ -23,6 +23,7 @@ pub enum ParseError {
     UnexpectedToken(String, usize),
     UnexpectedEndOfInput,
     InvalidExpression(String),
+    NotImplemented(String),
 }
 
 impl fmt::Display for ParseError {
@@ -31,6 +32,7 @@ impl fmt::Display for ParseError {
             ParseError::UnexpectedToken(token, pos) => write!(f, "Unexpected token '{}' at position {}", token, pos),
             ParseError::UnexpectedEndOfInput => write!(f, "Unexpected end of input"),
             ParseError::InvalidExpression(msg) => write!(f, "Invalid expression: {}", msg),
+            ParseError::NotImplemented(msg) => write!(f, "Not implemented: {}", msg),
         }
     }
 }

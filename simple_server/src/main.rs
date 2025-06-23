@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::Read;
+use serde_json;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tiny_http::{Server, Response, Header, Method, Request};
@@ -9,6 +10,7 @@ use std::collections::VecDeque;
 mod j_array;
 mod tokenizer;
 mod parser;
+mod custom_parser;
 mod lalr_parser;
 mod lalr_parser_test;
 mod semantic_analyzer;
@@ -20,6 +22,7 @@ mod test_suite;
 use interpreter::{JInterpreter, format_result};
 use visualizer::ParseTreeVisualizer;
 use lalr_parser::LalrParser;
+use custom_parser::CustomParser;
 use tokenizer::JTokenizer;
 use semantic_analyzer::JSemanticAnalyzer;
 use evaluator::JEvaluator;
@@ -68,18 +71,45 @@ fn main() {
                         // URL decode the J expression
                         let expression = url_decode(expression);
                         
-                        // Use LALRPOP parser with manual pipeline
+                        // Parse JSON request to get parser choice
+                        let request_data: serde_json::Value = serde_json::from_str(&body).unwrap_or_else(|_| {
+                            // Fallback for legacy form data
+                            if let Some(expression) = body.strip_prefix("expression=") {
+                                serde_json::json!({"expression": url_decode(expression), "parser": "lalrpop"})
+                            } else {
+                                serde_json::json!({"expression": body, "parser": "lalrpop"})
+                            }
+                        });
+                        
+                        let expression = request_data["expression"].as_str().unwrap_or(&body);
+                        let parser_choice = request_data["parser"].as_str().unwrap_or("lalrpop");
+                        
+                        println!("Evaluating: {} (using {} parser)", expression, parser_choice);
+                        
+                        // Use appropriate parser with manual pipeline
                         let tokenizer = JTokenizer::new();
-                        let lalr_parser = LalrParser::new();
                         let semantic_analyzer = JSemanticAnalyzer::new();
                         let evaluator = JEvaluator::new();
                         let visualizer = ParseTreeVisualizer::new();
                         
                         let formatted_result = match tokenizer.tokenize(&expression) {
                             Ok(tokens) => {
-                                match lalr_parser.parse(tokens) {
+                                let ast_result = match parser_choice {
+                                    "custom" => {
+                                        let custom_parser = CustomParser::new();
+                                        custom_parser.parse(tokens)
+                                    }
+                                    _ => {
+                                        let lalr_parser = LalrParser::new();
+                                        lalr_parser.parse(tokens)
+                                    }
+                                };
+                                
+                                match ast_result {
                                     Ok(ast) => {
-                                        let parse_tree_text = format!("LALRPOP Parse Tree:\n{}", visualizer.visualize(&ast));
+                                        let parse_tree_text = format!("{} Parse Tree:\n{}", 
+                                            if parser_choice == "custom" { "Custom" } else { "LALRPOP" },
+                                            visualizer.visualize(&ast));
                                         
                                         println!("Expression: {}", expression);
                                         println!("{}", parse_tree_text);

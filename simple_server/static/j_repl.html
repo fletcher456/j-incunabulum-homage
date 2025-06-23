@@ -32,6 +32,47 @@
             flex-direction: column;
             flex-grow: 1;
         }
+        
+        .parser-selection {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            margin-bottom: 15px;
+        }
+        
+        .parser-label {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .radio-group {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+        
+        .radio-option input[type="radio"] {
+            margin: 0;
+        }
+        
+        .radio-text {
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .radio-option:hover .radio-text {
+            color: #007acc;
+        }
         .repl-output {
             padding: 15px;
             background-color: #f9f9f9;
@@ -153,6 +194,20 @@
     
     <div class="app-wrapper">
         <div class="container">
+            <div class="parser-selection">
+                <label class="parser-label">Parser:</label>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" name="parser" value="lalrpop" checked>
+                        <span class="radio-text">LALRPOP</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="parser" value="custom">
+                        <span class="radio-text">Custom</span>
+                    </label>
+                </div>
+            </div>
+            
             <div class="repl-output" id="messages">
                 <!-- REPL history will be displayed here -->
                 $MESSAGES$
@@ -328,12 +383,20 @@
             // Clear the input field
             document.getElementById('expression-input').value = '';
             
+            // Get selected parser
+            const selectedParser = document.querySelector('input[name="parser"]:checked').value;
+            
+            const requestBody = JSON.stringify({
+                expression: expression,
+                parser: selectedParser
+            });
+            
             fetch('/j_eval', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Content-Type': 'application/json',
                 },
-                body: 'expression=' + encodeURIComponent(expression)
+                body: requestBody
             })
             .then(response => response.json())
             .then(data => {
