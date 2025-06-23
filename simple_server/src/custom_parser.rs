@@ -1,5 +1,5 @@
-// Custom Recursive Descent Parser - Phase 3 Implementation
-// Supports: array literals, basic addition, and monadic operations (~, -)
+// Custom Recursive Descent Parser - Phase 4 Implementation
+// Supports: array literals, basic addition, monadic operations (~, -), and J array operators (#, {, ,, <)
 
 use crate::parser::{JNode, ParseError};
 use crate::tokenizer::Token;
@@ -29,35 +29,56 @@ impl CustomParser {
     }
     
     fn parse_expression(&mut self) -> Result<JNode, ParseError> {
-        // Parse left operand (could be monadic expression)
-        let mut left = self.parse_monadic()?;
+        // Parse left operand (could be J operators)
+        let mut left = self.parse_j_operators()?;
         
-        // Handle left-associative dyadic operations
+        // Handle dyadic addition (lowest precedence)
         while self.position < self.tokens.len() {
             match &self.tokens[self.position] {
                 Token::Verb('+') => {
                     self.position += 1; // consume '+'
-                    let right = self.parse_monadic()?; // Right operand can also be monadic
+                    let right = self.parse_j_operators()?; // Right operand can also be J operators
                     left = JNode::AmbiguousVerb('+', Some(Box::new(left)), Some(Box::new(right)));
                 }
                 Token::Verb(op) => {
                     return Err(ParseError::NotImplemented(
-                        format!("Error: Operator '{}' not implemented in Phase 3", op)
+                        format!("Error: Operator '{}' not implemented in Phase 4", op)
                     ));
                 }
-                Token::Vector(_) => {
-                    return Err(ParseError::NotImplemented(
-                        "Error: Array literals not implemented".to_string()
-                    ));
-                }
-                _ => {
-                    return Err(ParseError::NotImplemented(
-                        format!("Error: Unexpected token at position {}", self.position)
-                    ));
-                }
+                _ => break,
             }
         }
+        Ok(left)
+    }
+
+    fn parse_j_operators(&mut self) -> Result<JNode, ParseError> {
+        let mut left = self.parse_monadic()?;
         
+        while self.position < self.tokens.len() {
+            match &self.tokens[self.position] {
+                Token::Verb('#') => {
+                    self.position += 1;
+                    let right = self.parse_monadic()?;
+                    left = JNode::AmbiguousVerb('#', Some(Box::new(left)), Some(Box::new(right)));
+                }
+                Token::Verb('{') => {
+                    self.position += 1;
+                    let right = self.parse_monadic()?;
+                    left = JNode::AmbiguousVerb('{', Some(Box::new(left)), Some(Box::new(right)));
+                }
+                Token::Verb(',') => {
+                    self.position += 1;
+                    let right = self.parse_monadic()?;
+                    left = JNode::AmbiguousVerb(',', Some(Box::new(left)), Some(Box::new(right)));
+                }
+                Token::Verb('<') => {
+                    self.position += 1;
+                    let right = self.parse_monadic()?;
+                    left = JNode::AmbiguousVerb('<', Some(Box::new(left)), Some(Box::new(right)));
+                }
+                _ => break,
+            }
+        }
         Ok(left)
     }
     
