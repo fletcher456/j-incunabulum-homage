@@ -4,10 +4,10 @@
 Rust-based web server with J language interpreter implementing array programming language features. Started as C webserver, evolved to full J interpreter with calculator interface and WASM deployment capability.
 
 ## Recent Changes
+- **Jun 23, 2025**: Created comprehensive custom recursive descent parser strategy document
 - **Jun 23, 2025**: Completed minimal LALRPOP-util replacement analysis - determined unfeasible
 - **Jun 23, 2025**: Discovered generated parser requires complete LR runtime implementation
-- **Jun 23, 2025**: Confirmed server-first deployment as optimal strategy given toolchain constraints
-- **Jun 23, 2025**: Documented comprehensive WASM optimization attempts and technical limitations
+- **Jun 23, 2025**: Documented exhaustive WASM optimization attempts and architectural solutions
 
 ## Project Architecture
 
@@ -46,8 +46,8 @@ Rust-based web server with J language interpreter implementing array programming
 - Focus on maintaining existing functionality while adding capabilities
 
 ## Technical Decisions
-- **LALRPOP over hand-written parser**: Better grammar maintenance and correctness
+- **LALRPOP over hand-written parser**: Better grammar maintenance and correctness (current)
+- **Custom recursive descent parser**: Comprehensive 8-week strategy for complete LALRPOP replacement
 - **Server-first deployment**: Primary strategy due to Cargo dependency resolution limitations
 - **HTTP adapter pattern**: Preserves existing interfaces with automatic WASM fallback
-- **Hybrid compilation approach**: Architecturally sound but blocked by toolchain constraints
 - **Matrix formatting with `<pre>` tags**: Solves browser CSS inheritance issues
