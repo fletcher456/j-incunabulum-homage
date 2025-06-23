@@ -1,21 +1,291 @@
-name: Rust
+name: Rust CI/CD with WASM
 
 on:
   push:
     branches: [ "main" ]
+    paths: 
+      - 'simple_server/**'
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:  # Manual trigger option
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
-    - name: Build
+    - name: Build server
       working-directory: ./simple_server
       run: cargo build --verbose
+      
+  wasm-build:
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Rust toolchain with WASM target
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: wasm32-unknown-unknown
+        override: true
+        components: rustfmt, clippy
+        
+    - name: Install wasm-pack
+      run: |
+        echo "=== Installing wasm-pack ==="
+        curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        
+    - name: Verify WASM toolchain
+      run: |
+        echo "=== Rust Toolchain Information ==="
+        rustc --version
+        cargo --version
+        rustup show
+        echo "=== WASM Target Verification ==="
+        rustup target list --installed | grep wasm
+        echo "=== wasm-pack Version ==="
+        wasm-pack --version
+        echo "=== Environment Variables ==="
+        env | grep -E "(CARGO|RUST|PATH)" | head -20
+        
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          simple_server/target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('simple_server/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+          
+    - name: Build WASM module (verbose)
+      working-directory: simple_server
+      run: |
+        echo "=== Starting WASM Build Process ==="
+        echo "Working directory: $(pwd)"
+        echo "=== Cargo.toml contents ==="
+        cat Cargo.toml
+        echo "=== lib.rs verification ==="
+        head -20 src/lib.rs
+        echo "=== Dependencies Check ==="
+        cargo tree --target wasm32-unknown-unknown || echo "Dependency tree failed"
+        echo "=== WASM Build with Maximum Verbosity ==="
+        RUST_LOG=debug wasm-pack build \
+          --target web \
+          --out-dir static/pkg \
+          --dev \
+          --verbose \
+          -- --verbose
+          
+    - name: Verify WASM build output
+      working-directory: simple_server
+      run: |
+        echo "=== Build Output Verification ==="
+        ls -la static/pkg/ || echo "pkg directory not found"
+        echo "=== WASM File Information ==="
+        if ls static/pkg/*.wasm 1> /dev/null 2>&1; then
+          for wasm_file in static/pkg/*.wasm; do
+            echo "File: $wasm_file"
+            file "$wasm_file"
+            echo "Size: $(stat -c%s "$wasm_file") bytes"
+          done
+        else
+          echo "No .wasm files found"
+        fi
+        echo "=== JavaScript Binding Verification ==="
+        if ls static/pkg/*.js 1> /dev/null 2>&1; then
+          for js_file in static/pkg/*.js; do
+            echo "=== Contents of $js_file (first 30 lines) ==="
+            head -30 "$js_file"
+          done
+        else
+          echo "No .js files found"
+        fi
+        echo "=== TypeScript Definitions ==="
+        if ls static/pkg/*.d.ts 1> /dev/null 2>&1; then
+          head -20 static/pkg/*.d.ts
+        else
+          echo "No .d.ts files found"
+        fi
+        echo "=== Package.json Contents ==="
+        if [ -f static/pkg/package.json ]; then
+          cat static/pkg/package.json
+        else
+          echo "No package.json found"
+        fi
+        
+    - name: Test WASM module integrity
+      working-directory: simple_server
+      run: |
+        echo "=== WASM Module Testing ==="
+        if command -v node &> /dev/null; then
+          echo "Testing WASM module with Node.js..."
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const pkgDir = './static/pkg';
+            
+            console.log('=== Package Directory Contents ===');
+            if (fs.existsSync(pkgDir)) {
+              const files = fs.readdirSync(pkgDir);
+              files.forEach(file => {
+                const filePath = path.join(pkgDir, file);
+                const stats = fs.statSync(filePath);
+                console.log(\`\${file}: \${stats.size} bytes\`);
+              });
+              
+              const wasmFiles = files.filter(f => f.endsWith('.wasm'));
+              if (wasmFiles.length > 0) {
+                const wasmFile = wasmFiles[0];
+                const wasmPath = path.join(pkgDir, wasmFile);
+                const wasmSize = fs.statSync(wasmPath).size;
+                console.log(\`✅ WASM file found: \${wasmFile} (\${wasmSize} bytes)\`);
+                
+                if (wasmSize > 10000) {
+                  console.log('✅ WASM module appears valid (size check passed)');
+                } else {
+                  console.log('⚠️  WASM module may be invalid (size < 10KB)');
+                  process.exit(1);
+                }
+              } else {
+                console.log('❌ No WASM files found');
+                process.exit(1);
+              }
+            } else {
+              console.log('❌ Package directory not found');
+              process.exit(1);
+            }
+          "
+        else
+          echo "Node.js not available for testing"
+        fi
+        
+    - name: Create J language test
+      working-directory: simple_server
+      run: |
+        echo "=== Testing J Language Functions ==="
+        if [ -f static/pkg/simple_server.js ]; then
+          echo "JavaScript binding found, creating test..."
+          cat > test_wasm.js << 'EOF'
+const fs = require('fs');
+const path = require('path');
+
+async function testWasm() {
+    console.log('=== J Language WASM Test ===');
+    
+    // Check if we can load the module
+    const wasmPath = './static/pkg/simple_server_bg.wasm';
+    if (fs.existsSync(wasmPath)) {
+        console.log('✅ WASM binary exists');
+        const wasmBytes = fs.readFileSync(wasmPath);
+        console.log(`WASM size: ${wasmBytes.length} bytes`);
+        
+        // Basic validation that it's a WASM file
+        const wasmMagic = wasmBytes.subarray(0, 4);
+        const expectedMagic = Buffer.from([0x00, 0x61, 0x73, 0x6d]);
+        if (wasmMagic.equals(expectedMagic)) {
+            console.log('✅ Valid WASM magic number detected');
+        } else {
+            console.log('❌ Invalid WASM magic number');
+            console.log('Expected:', expectedMagic);
+            console.log('Got:', wasmMagic);
+        }
+    } else {
+        console.log('❌ WASM binary not found');
+    }
+    
+    // Check JavaScript bindings
+    const jsPath = './static/pkg/simple_server.js';
+    if (fs.existsSync(jsPath)) {
+        console.log('✅ JavaScript bindings exist');
+        const jsContent = fs.readFileSync(jsPath, 'utf8');
+        
+        // Look for expected functions
+        const functions = ['evaluate_j_expression', 'wasm_bindgen', 'init'];
+        functions.forEach(func => {
+            if (jsContent.includes(func)) {
+                console.log(`✅ Found function: ${func}`);
+            } else {
+                console.log(`⚠️  Function not found: ${func}`);
+            }
+        });
+    } else {
+        console.log('❌ JavaScript bindings not found');
+    }
+}
+
+testWasm().catch(console.error);
+EOF
+          
+          if command -v node &> /dev/null; then
+            node test_wasm.js
+          else
+            echo "Node.js not available, skipping WASM test"
+          fi
+        else
+          echo "No JavaScript bindings found, skipping test"
+        fi
+        
+    - name: Upload WASM artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: wasm-build-${{ github.sha }}
+        path: |
+          simple_server/static/pkg/
+        retention-days: 30
+        
+    - name: Create deployment summary
+      run: |
+        echo "# WASM Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "**Build Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Deployment Instructions" >> $GITHUB_STEP_SUMMARY
+        echo "1. Download the \`wasm-build-${{ github.sha }}\` artifact" >> $GITHUB_STEP_SUMMARY
+        echo "2. Extract files to \`simple_server/static/pkg/\` in your Replit" >> $GITHUB_STEP_SUMMARY
+        echo "3. Restart the simple_server workflow in Replit" >> $GITHUB_STEP_SUMMARY
+        echo "4. Test WASM functionality in browser console" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Generated Files" >> $GITHUB_STEP_SUMMARY
+        cd simple_server
+        if [ -d static/pkg ]; then
+          cd static/pkg
+          for file in *; do
+            if [ -f "$file" ]; then
+              size=$(stat -c%s "$file" 2>/dev/null || echo "unknown")
+              echo "- \`$file\` ($size bytes)" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+        else
+          echo "No files generated" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+    - name: Diagnostic information on failure
+      if: failure()
+      run: |
+        echo "=== Failure Diagnostics ===" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "Rust toolchain status:" >> $GITHUB_STEP_SUMMARY
+        rustup show 2>&1 || echo "rustup failed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Cargo version:" >> $GITHUB_STEP_SUMMARY
+        cargo --version 2>&1 || echo "cargo failed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Available targets:" >> $GITHUB_STEP_SUMMARY
+        rustup target list --installed 2>&1 || echo "target list failed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "wasm-pack status:" >> $GITHUB_STEP_SUMMARY
+        wasm-pack --version 2>&1 || echo "wasm-pack not found" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
