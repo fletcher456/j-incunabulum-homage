@@ -4,11 +4,11 @@
 Rust-based web server with J language interpreter implementing array programming language features. Started as C webserver, evolved to full J interpreter with calculator interface and WASM deployment capability.
 
 ## Recent Changes
+- **Jun 23, 2025**: Successfully completed Phase 2 - Added monadic operations (~, -) with precedence framework
+- **Jun 23, 2025**: Verified Phase 2 functionality: "~3", "1+~3", "~3+1", "~3+~3" all working correctly
+- **Jun 23, 2025**: Confirmed proper precedence handling: monadic operations bind tighter than dyadic
+- **Jun 23, 2025**: Created comprehensive strategy document for remaining phases (Phase 3-6)
 - **Jun 23, 2025**: Successfully completed Phase 1 - Custom parser with literals and basic addition
-- **Jun 23, 2025**: Verified Phase 1 functionality: "42", "1+2", "1+2+3" all working correctly
-- **Jun 23, 2025**: Confirmed appropriate error handling for unsupported features ("~3", "1 2")
-- **Jun 23, 2025**: Created Phase 2 strategy document for monadic operations with precedence handling
-- **Jun 23, 2025**: Successfully implemented Phase 0 - Custom parser stub with parser selection UI
 
 ## Project Architecture
 
@@ -40,7 +40,8 @@ Rust-based web server with J language interpreter implementing array programming
 - ✅ Hybrid WASM compilation approach (LALRPOP native, execution WASM)
 - ✅ Phase 0: Custom parser stub with parser selection UI working
 - ✅ Phase 1: Custom parser supporting literals and addition operations (fully functional)
-- 🔄 Phase 2: Monadic operations (~, -) with precedence handling (ready for implementation)
+- ✅ Phase 2: Monadic operations (~, -) with precedence framework (fully functional)
+- 🔄 Phase 3-6: Complete custom parser implementation roadmap (12.5 hours total)
 
 ## User Preferences
 - Prioritize minimal complexity over minimal code
@@ -49,8 +50,10 @@ Rust-based web server with J language interpreter implementing array programming
 - Focus on maintaining existing functionality while adding capabilities
 
 ## Technical Decisions
-- **LALRPOP over hand-written parser**: Better grammar maintenance and correctness (current)
-- **Custom recursive descent parser**: Comprehensive 8-week strategy for complete LALRPOP replacement
+- **Custom recursive descent parser**: Successful incremental implementation approach (current)
+- **Precedence framework**: Method hierarchy supporting complex operator precedence
+- **Phase-based development**: Minimal, testable increments with comprehensive strategies
+- **Parallel parser architecture**: LALRPOP and Custom coexist with UI selection
 - **Server-first deployment**: Primary strategy due to Cargo dependency resolution limitations
 - **HTTP adapter pattern**: Preserves existing interfaces with automatic WASM fallback
 - **Matrix formatting with `<pre>` tags**: Solves browser CSS inheritance issues
