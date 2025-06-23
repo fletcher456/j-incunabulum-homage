@@ -2,7 +2,7 @@ modules = ["c", "rust"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["rustc", "cargo", "wasm-pack"]
+packages = ["rustc", "cargo", "wasm-pack", "lld", "wasm-bindgen-cli"]
 
 [workflows]
 runButton = "Project"

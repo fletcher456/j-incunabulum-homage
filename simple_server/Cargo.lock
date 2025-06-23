@@ -133,6 +133,7 @@ name = "simple_server"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
+ "serde",
  "serde_json",
  "tiny_http",
  "wasm-bindgen",
