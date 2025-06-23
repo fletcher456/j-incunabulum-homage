@@ -76,6 +76,18 @@ impl CustomParser {
                     let right = self.parse_monadic()?;
                     left = JNode::AmbiguousVerb('<', Some(Box::new(left)), Some(Box::new(right)));
                 }
+                Token::Verb('~') => {
+                    // Allow dyadic ~ to pass through to semantic analyzer (like LALRPOP)
+                    self.position += 1;
+                    let right = self.parse_monadic()?;
+                    left = JNode::AmbiguousVerb('~', Some(Box::new(left)), Some(Box::new(right)));
+                }
+                Token::Verb('-') => {
+                    // Allow dyadic - to pass through to semantic analyzer (like LALRPOP)
+                    self.position += 1;
+                    let right = self.parse_monadic()?;
+                    left = JNode::AmbiguousVerb('-', Some(Box::new(left)), Some(Box::new(right)));
+                }
                 _ => break,
             }
         }
