@@ -1,3 +1,7 @@
+A live demo of this project is available:
+
+http://replit.com/@fletcher456/HelloWorldServer
+
 This project was a test to see what the current possibilities with Replit are for me. It fully works, although I've only run it inside Replit, for reasons that will be clear in a couple more paragraphs. I believe that it is in the spirit of the J incunabulum:
 
 https://www.jsoftware.com/ioj/iojATW.htm
