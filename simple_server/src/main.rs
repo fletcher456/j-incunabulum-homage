@@ -99,7 +99,7 @@ fn main() {
                         Ok(tokens) => {
                             let ast_result = match parser_choice {
                                 "custom" => {
-                                    let custom_parser = CustomParser::new();
+                                    let mut custom_parser = CustomParser::new();
                                     custom_parser.parse(tokens)
                                 }
                                 _ => {
