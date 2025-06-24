@@ -181,17 +181,17 @@
             }
         }
         
-        function submitExpression(expression) {
+        async function submitExpression(expression) {
             // Add input message immediately
             addMessage('> ' + expression, 'input');
             
             // Clear the input field
             document.getElementById('expression-input').value = '';
             
-            // Try WASM first, fallback to server
+            // Use WASM/server adapter
             if (window.wasmLoader && window.wasmLoader.isReady()) {
                 try {
-                    const result = window.wasmLoader.evaluateExpression(expression);
+                    const result = await window.wasmLoader.evaluateExpression(expression);
                     const resultClass = result.startsWith('Error') ? 'error' : 'output';
                     addMessage('  ' + result, resultClass);
                 } catch (error) {
@@ -199,31 +199,22 @@
                 }
                 scrollToBottom();
             } else {
-                // Fallback to server mode
-                const requestBody = JSON.stringify({
-                    expression: expression,
-                    parser: 'custom'
-                });
-                
-                fetch('/j_eval', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: requestBody
-                })
-                .then(response => response.json())
-                .then(data => {
-                    // Add the result message
-                    const resultClass = data.result.startsWith('Error') ? 'error' : 'output';
-                    addMessage('  ' + data.result, resultClass);
-                    scrollToBottom();
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    addMessage('  Error: Communication failed', 'error');
-                    scrollToBottom();
-                });
+                // Pure server fallback for GitHub Pages
+                try {
+                    const response = await fetch('/evaluate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ expression: expression, parser: 'custom' })
+                    });
+                    const data = await response.json();
+                    const result = data.result || data.error || 'No result';
+                    const resultClass = result.startsWith('Error') ? 'error' : 'output';
+                    addMessage('  ' + result, resultClass);
+                } catch (error) {
+                    console.error('Server error:', error);
+                    addMessage('  Error: Server communication failed', 'error');
+                }
+                scrollToBottom();
             }
         }
         
