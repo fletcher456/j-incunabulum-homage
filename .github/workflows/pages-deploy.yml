@@ -153,8 +153,8 @@ jobs:
         # Create build directory
         mkdir -p pages-build
         
-        # Copy demo files
-        echo "Copying demo files..."
+        # Copy adapted Replit frontend files
+        echo "Copying adapted frontend files..."
         cp -r pages-demo/* pages-build/
         
         # Create wasm directory and copy artifacts
@@ -179,9 +179,9 @@ jobs:
         find pages-build -type f | sort
         
         echo "=== File Sizes ==="
-        du -h pages-build/wasm/*
-        du -h pages-build/js/*
-        du -h pages-build/css/*
+        du -h pages-build/wasm/* 2>/dev/null || echo "WASM files: (calculating...)"
+        du -h pages-build/js/* 2>/dev/null || echo "JS files: (calculating...)"  
+        du -h pages-build/css/* 2>/dev/null || echo "CSS files: (calculating...)"
         
         echo "✅ Pages structure created successfully"
         

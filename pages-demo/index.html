@@ -3,231 +3,256 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>J Language Interpreter | Live WebAssembly Demo</title>
+    <title>J Language Interpreter - WebAssembly Demo</title>
     <meta name="description" content="Interactive J language interpreter running entirely in your browser with WebAssembly">
     <meta name="keywords" content="J language, array programming, WebAssembly, WASM, interpreter, APL">
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <div class="header-content">
-                <h1 class="title">J Language Interpreter</h1>
-                <p class="subtitle">Interactive Array Programming with WebAssembly</p>
-                <div class="badges">
-                    <span class="badge wasm">WebAssembly</span>
-                    <span class="badge client">Client-Side</span>
-                    <span class="badge array">Array Programming</span>
-                </div>
-            </div>
-        </header>
-        
-        <main class="main-content">
-            <div class="interpreter-section">
-                <div class="interpreter-panel">
-                    <div class="input-section">
-                        <label for="j-input" class="input-label">
-                            <span class="label-text">Enter J Expression:</span>
-                            <span class="label-hint">Press Enter or click Evaluate</span>
-                        </label>
-                        <div class="input-group">
-                            <input 
-                                type="text" 
-                                id="j-input" 
-                                class="j-input"
-                                placeholder="~3+~3"
-                                autocomplete="off"
-                                autocapitalize="off"
-                                spellcheck="false"
-                            >
-                            <button id="evaluate-btn" class="evaluate-btn" disabled>
-                                <span class="btn-text">Evaluate</span>
-                                <span class="btn-shortcut">⏎</span>
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="output-section">
-                        <div class="output-header">
-                            <label class="output-label">Result:</label>
-                            <div class="output-stats">
-                                <span id="eval-time" class="eval-time"></span>
-                            </div>
-                        </div>
-                        <div id="result-display" class="result-display" aria-live="polite">
-                            <div class="result-placeholder">
-                                Ready for J expressions...
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="status-section">
-                        <div class="status-indicator">
-                            <div id="wasm-status" class="wasm-status loading">
-                                <div class="status-icon"></div>
-                                <span class="status-text">Initializing WebAssembly...</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="history-panel">
-                    <div class="history-header">
-                        <h3>Expression History</h3>
-                        <button id="clear-history" class="clear-btn">Clear</button>
-                    </div>
-                    <div id="history-list" class="history-list">
-                        <div class="history-empty">No expressions yet</div>
-                    </div>
-                </div>
+    <h1>J Language Interpreter</h1>
+    
+    <div class="app-wrapper">
+        <div class="container">
+            <div class="repl-output" id="messages">
+                <!-- REPL history will be displayed here -->
             </div>
             
-            <aside class="sidebar">
-                <div class="examples-panel">
-                    <h3 class="panel-title">Quick Examples</h3>
-                    <div class="example-grid">
-                        <button class="example-btn" data-expr="~3+~3" data-desc="Negate and add">
-                            <code>~3+~3</code>
-                            <span class="example-desc">Negate and add</span>
-                        </button>
-                        <button class="example-btn" data-expr="2 3#~6" data-desc="Reshape array">
-                            <code>2 3#~6</code>
-                            <span class="example-desc">Reshape to 2×3 matrix</span>
-                        </button>
-                        <button class="example-btn" data-expr="1+2+3+4" data-desc="Chain addition">
-                            <code>1+2+3+4</code>
-                            <span class="example-desc">Chain addition</span>
-                        </button>
-                        <button class="example-btn" data-expr="4{~7" data-desc="Index operation">
-                            <code>4{~7</code>
-                            <span class="example-desc">Index into array</span>
-                        </button>
-                        <button class="example-btn" data-expr="(1+2)*3" data-desc="Parentheses">
-                            <code>(1+2)*3</code>
-                            <span class="example-desc">Grouped expression</span>
-                        </button>
-                        <button class="example-btn" data-expr="1,2,3,4" data-desc="Concatenation">
-                            <code>1,2,3,4</code>
-                            <span class="example-desc">Array concatenation</span>
-                        </button>
-                    </div>
-                </div>
+            <form action="/j_eval" method="post" id="j-form">
+                <input type="text" id="expression-input" name="expression" placeholder="Use buttons below to enter expressions" readonly>
                 
-                <div class="reference-panel">
-                    <h3 class="panel-title">Operator Reference</h3>
-                    <div class="reference-grid">
-                        <div class="reference-group">
-                            <h4>Monadic (Prefix)</h4>
-                            <div class="operator-list">
-                                <div class="operator-item">
-                                    <code>~x</code>
-                                    <span>Negate</span>
-                                </div>
-                                <div class="operator-item">
-                                    <code>#x</code>
-                                    <span>Shape/Tally</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="reference-group">
-                            <h4>Dyadic (Infix)</h4>
-                            <div class="operator-list">
-                                <div class="operator-item">
-                                    <code>x+y</code>
-                                    <span>Addition</span>
-                                </div>
-                                <div class="operator-item">
-                                    <code>x-y</code>
-                                    <span>Subtraction</span>
-                                </div>
-                                <div class="operator-item">
-                                    <code>x*y</code>
-                                    <span>Multiplication</span>
-                                </div>
-                                <div class="operator-item">
-                                    <code>x%y</code>
-                                    <span>Division</span>
-                                </div>
-                                <div class="operator-item">
-                                    <code>x#y</code>
-                                    <span>Reshape</span>
-                                </div>
-                                <div class="operator-item">
-                                    <code>x{y</code>
-                                    <span>Index</span>
-                                </div>
-                                <div class="operator-item">
-                                    <code>x,y</code>
-                                    <span>Concatenate</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <!-- Calculator grid - 19 buttons in 4 rows -->
+                <div class="calculator">
+                    <!-- Row 1: ~#789 -->
+                    <button type="button" class="btn btn-verb" data-value="~">~</button>
+                    <button type="button" class="btn btn-verb" data-value="#">#</button>
+                    <button type="button" class="btn btn-number" data-value="7">7</button>
+                    <button type="button" class="btn btn-number" data-value="8">8</button>
+                    <button type="button" class="btn btn-number" data-value="9">9</button>
+                    
+                    <!-- Row 2: {,456 -->
+                    <button type="button" class="btn btn-verb" data-value="{">{</button>
+                    <button type="button" class="btn btn-verb" data-value=",">,</button>
+                    <button type="button" class="btn btn-number" data-value="4">4</button>
+                    <button type="button" class="btn btn-number" data-value="5">5</button>
+                    <button type="button" class="btn btn-number" data-value="6">6</button>
+                    
+                    <!-- Row 3: <+123 -->
+                    <button type="button" class="btn btn-verb" data-value="<"><</button>
+                    <button type="button" class="btn btn-verb" data-value="+">+</button>
+                    <button type="button" class="btn btn-number" data-value="1">1</button>
+                    <button type="button" class="btn btn-number" data-value="2">2</button>
+                    <button type="button" class="btn btn-number" data-value="3">3</button>
+                    
+                    <!-- Row 4: ←␣()0 = -->
+                    <button type="button" class="btn btn-control" data-value="←" id="backspace-btn">←</button>
+                    <button type="button" class="btn btn-control" data-value=" ">␣</button>
+                    <button type="button" class="btn btn-paren" id="paren-btn">()</button>
+                    <button type="button" class="btn btn-number" data-value="0">0</button>
+                    <button type="button" class="btn btn-eval" id="eval-btn">=</button>
+
                 </div>
-                
-                <div class="about-panel">
-                    <h3 class="panel-title">About This Demo</h3>
-                    <div class="about-content">
-                        <p>This J language interpreter runs entirely in your browser using WebAssembly technology. No server communication is required - all computation happens client-side.</p>
-                        
-                        <div class="tech-stack">
-                            <h4>Technology Stack</h4>
-                            <ul>
-                                <li><strong>Backend:</strong> Rust compiled to WebAssembly</li>
-                                <li><strong>Frontend:</strong> Vanilla JavaScript ES6 modules</li>
-                                <li><strong>Deployment:</strong> GitHub Pages with Actions CI/CD</li>
-                                <li><strong>Performance:</strong> Native-speed array operations</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="features">
-                            <h4>Key Features</h4>
-                            <ul>
-                                <li>Full J language operator support</li>
-                                <li>Multi-dimensional array processing</li>
-                                <li>Real-time expression evaluation</li>
-                                <li>Expression history and examples</li>
-                                <li>Mobile-responsive design</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="source-info">
-                            <p>
-                                <a href="https://github.com/your-username/your-repo" target="_blank" rel="noopener">
-                                    View Source Code on GitHub
-                                </a>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </aside>
-        </main>
-        
-        <footer class="footer">
-            <div class="footer-content">
-                <p>&copy; 2025 J Language WebAssembly Demo. 
-                   Built with <a href="https://www.rust-lang.org/" target="_blank">Rust</a> and 
-                   <a href="https://webassembly.org/" target="_blank">WebAssembly</a>.
-                </p>
-                <p>Deployed automatically via GitHub Actions to GitHub Pages.</p>
+            </form>
+            
+            <div class="help-text">
+                Use the calculator to enter J expressions.
+                Examples: <code>~5</code> (negate), <code>2 + 3</code> (addition), <code>2 3 # 1 2 3 4 5 6</code> (reshape)
             </div>
-        </footer>
+        </div>
     </div>
-    
-    <!-- Performance monitoring -->
+
     <script>
-        if ('performance' in window) {
-            window.addEventListener('load', () => {
-                const perfData = performance.getEntriesByType('navigation')[0];
-                console.log('Page load time:', perfData.loadEventEnd - perfData.loadEventStart + 'ms');
+        // Function to scroll to bottom of messages
+        function scrollToBottom() {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        // Scroll to bottom when page loads
+        window.onload = function() {
+            scrollToBottom();
+            setupCalculator();
+        };
+        
+        function setupCalculator() {
+            const input = document.getElementById('expression-input');
+            const form = document.getElementById('j-form');
+            const evalBtn = document.getElementById('eval-btn');
+            const backspaceBtn = document.getElementById('backspace-btn');
+            const parenBtn = document.getElementById('paren-btn');
+            
+            // Parentheses button mode: 0 = insert pair, 1 = move past right paren
+            let parenMode = 0;
+            
+            // Handler for regular buttons (numbers, verbs, space)
+            const regularButtons = document.querySelectorAll('.btn:not(#eval-btn):not(#backspace-btn):not(#paren-btn)');
+            regularButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const value = this.getAttribute('data-value');
+                    if (value) {
+                        insertAtCursor(input, value);
+                    }
+                });
             });
+            
+            // Handler for backspace button
+            backspaceBtn.addEventListener('click', function() {
+                const cursorPos = input.selectionStart;
+                if (cursorPos > 0) {
+                    const value = input.value;
+                    input.value = value.slice(0, cursorPos - 1) + value.slice(cursorPos);
+                    input.setSelectionRange(cursorPos - 1, cursorPos - 1);
+                }
+            });
+            
+            // Handler for parentheses button
+            parenBtn.addEventListener('click', function() {
+                handleParentheses(input);
+            });
+            
+            // Handler for evaluate button
+            evalBtn.addEventListener('click', function() {
+                if (input.value.trim()) {
+                    submitExpression(input.value);
+                }
+            });
+            
+            // Form submission handler
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                if (input.value.trim()) {
+                    submitExpression(input.value);
+                }
+            });
+            
+            function insertAtCursor(input, text) {
+                const cursorPos = input.selectionStart;
+                const value = input.value;
+                input.value = value.slice(0, cursorPos) + text + value.slice(cursorPos);
+                input.setSelectionRange(cursorPos + text.length, cursorPos + text.length);
+            }
+            
+            function handleParentheses(input) {
+                const text = input.value;
+                const cursorPos = input.selectionStart;
+                
+                // Count unpaired parentheses
+                let openCount = 0;
+                let closeCount = 0;
+                for (let i = 0; i < text.length; i++) {
+                    if (text[i] === '(') openCount++;
+                    if (text[i] === ')') closeCount++;
+                }
+                
+                const unpairedLeft = openCount - closeCount;
+                
+                if (unpairedLeft > 0) {
+                    // There are unpaired left parentheses, insert right paren
+                    insertAtCursor(input, ')');
+                    parenMode = 0; // Switch to mode 0
+                } else if (unpairedLeft < 0) {
+                    // There are unpaired right parentheses, insert left paren
+                    insertAtCursor(input, '(');
+                    parenMode = 1; // Switch to mode 1
+                } else {
+                    // All parentheses are paired, use current mode
+                    if (parenMode === 0) {
+                        // Mode 0: Insert pair and move cursor between them
+                        const beforeCursor = text.slice(0, cursorPos);
+                        const afterCursor = text.slice(cursorPos);
+                        input.value = beforeCursor + '()' + afterCursor;
+                        input.setSelectionRange(cursorPos + 1, cursorPos + 1); // Between the parens
+                        parenMode = 1; // Switch to mode 1
+                    } else {
+                        // Mode 1: Move cursor past the next right parenthesis
+                        const nextRightParen = text.indexOf(')', cursorPos);
+                        if (nextRightParen !== -1) {
+                            input.setSelectionRange(nextRightParen + 1, nextRightParen + 1);
+                        } else {
+                            // No right paren found, insert pair anyway
+                            const beforeCursor = text.slice(0, cursorPos);
+                            const afterCursor = text.slice(cursorPos);
+                            input.value = beforeCursor + '()' + afterCursor;
+                            input.setSelectionRange(cursorPos + 1, cursorPos + 1);
+                        }
+                        parenMode = 0; // Switch to mode 0
+                    }
+                }
+            }
+        }
+        
+        function submitExpression(expression) {
+            // Add input message immediately
+            addMessage('> ' + expression, 'input');
+            
+            // Clear the input field
+            document.getElementById('expression-input').value = '';
+            
+            // Try WASM first, fallback to server
+            if (window.wasmLoader && window.wasmLoader.isReady()) {
+                try {
+                    const result = window.wasmLoader.evaluateExpression(expression);
+                    const resultClass = result.startsWith('Error') ? 'error' : 'output';
+                    addMessage('  ' + result, resultClass);
+                } catch (error) {
+                    addMessage('  Error: ' + error.message, 'error');
+                }
+                scrollToBottom();
+            } else {
+                // Fallback to server mode
+                const requestBody = JSON.stringify({
+                    expression: expression,
+                    parser: 'custom'
+                });
+                
+                fetch('/j_eval', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: requestBody
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Add the result message
+                    const resultClass = data.result.startsWith('Error') ? 'error' : 'output';
+                    addMessage('  ' + data.result, resultClass);
+                    scrollToBottom();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    addMessage('  Error: Communication failed', 'error');
+                    scrollToBottom();
+                });
+            }
+        }
+        
+        function addMessage(text, className) {
+            const messagesDiv = document.getElementById('messages');
+            const messageContainer = messagesDiv.querySelector('.message-container') || messagesDiv;
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ' + className;
+            
+            // If this looks like a matrix (multiple lines with numbers), wrap in <pre>
+            if (className === 'output' && text.includes('\n') && /\d/.test(text)) {
+                const preElement = document.createElement('pre');
+                preElement.textContent = text;
+                preElement.style.margin = '0';
+                preElement.style.fontFamily = 'monospace';
+                messageDiv.appendChild(preElement);
+            } else {
+                messageDiv.textContent = text;
+            }
+            
+            messageContainer.appendChild(messageDiv);
         }
     </script>
     
-    <!-- Load application modules -->
-    <script type="module" src="js/wasm-loader.js"></script>
-    <script type="module" src="js/j-interpreter.js"></script>
+    <!-- WASM Adapter Scripts -->
+    <script src="js/wasm-adapter.js"></script>
+    <script src="js/app-init.js"></script>
+</body>
+</html>
 </body>
 </html>

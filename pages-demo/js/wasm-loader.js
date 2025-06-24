@@ -52,9 +52,9 @@ class WasmLoader {
                 throw new Error('WebAssembly not supported in this browser');
             }
             
-            // Import the generated JavaScript bindings
+            // Import the generated JavaScript bindings  
             console.log('📦 Importing WASM bindings...');
-            const wasmModule = await import('../wasm/simple_server.js');
+            const wasmModule = await import('./wasm/simple_server.js');
             
             // Initialize the WASM module
             console.log('⚙️ Initializing WASM instance...');
