@@ -1,4 +1,4 @@
-name: Rust CI/CD with WASM
+name: Rust CI/CD with WASM (DEPRECATED - Use unified-deploy.yml)
 
 on:
   push:

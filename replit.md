@@ -4,6 +4,15 @@
 Rust-based web server with J language interpreter implementing array programming language features. Started as C webserver, evolved to full J interpreter with calculator interface and WASM deployment capability.
 
 ## Recent Changes
+- **Jun 24, 2025**: ✅ Implemented unified GitHub Actions workflow - merged rust.yml and pages-deploy.yml to enable artifact sharing
+- **Jun 24, 2025**: ✅ Added WASM function export (`evaluate_j_expression`) for GitHub Pages client-side evaluation
+- **Jun 24, 2025**: ✅ Fixed GitHub Actions artifact isolation issue - unified workflow enables WASM deployment
+- **Jun 24, 2025**: ✅ Successfully completed Replit frontend adaptation for GitHub Pages deployment
+- **Jun 24, 2025**: ✅ Fixed CSS styling issues - calculator interface now displays correctly with proper button layout
+- **Jun 24, 2025**: ✅ Verified dual-mode operation: WASM (GitHub Pages) + server fallback (Replit) working correctly
+- **Jun 24, 2025**: ✅ Implemented comprehensive error handling and graceful WASM fallback system
+
+## Previous Updates
 - **Jun 23, 2025**: Successfully completed Phase 2 - Added monadic operations (~, -) with precedence framework
 - **Jun 23, 2025**: Verified Phase 2 functionality: "~3", "1+~3", "~3+1", "~3+~3" all working correctly
 - **Jun 23, 2025**: Confirmed proper precedence handling: monadic operations bind tighter than dyadic
@@ -70,8 +79,9 @@ Rust-based web server with J language interpreter implementing array programming
 - ✅ GitHub Pages Guide: Complete deployment instructions for client-side J language demo with WASM artifacts
 - ✅ **Replit Frontend Adaptation**: Complete calculator interface adaptation for GitHub Pages deployment
 - ✅ **Dual-Mode Operation**: Verified WASM (GitHub Pages) + server fallback (Replit) functionality
-- 📋 WASM Function Export: Add `evaluate_j_expression` export for GitHub Pages WASM integration
-- 📋 Repository Setup: Enable GitHub Pages and push to main branch for automated deployment
+- ✅ **WASM Function Export**: Added `evaluate_j_expression` export for GitHub Pages WASM integration
+- ✅ **Unified GitHub Actions**: Merged workflows to enable artifact sharing between build and deployment jobs
+- 📋 Repository Setup: Enable GitHub Pages and push to main branch to trigger automated deployment
 - 📋 Future: Additional J language operators and enhanced array operations
 
 ## User Preferences
