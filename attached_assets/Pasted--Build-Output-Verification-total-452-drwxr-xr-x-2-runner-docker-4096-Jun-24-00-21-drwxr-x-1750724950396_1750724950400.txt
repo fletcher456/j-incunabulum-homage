@@ -1,0 +1,96 @@
+=== Build Output Verification ===
+total 452
+drwxr-xr-x 2 runner docker   4096 Jun 24 00:21 .
+drwxr-xr-x 3 runner docker   4096 Jun 24 00:21 ..
+-rw-r--r-- 1 runner docker      1 Jun 24 00:21 .gitignore
+-rw-r--r-- 1 runner docker   1657 Jun 24 00:21 j_interpreter_wasm.d.ts
+-rw-r--r-- 1 runner docker   9066 Jun 24 00:21 j_interpreter_wasm.js
+-rw-r--r-- 1 runner docker 421901 Jun 24 00:21 j_interpreter_wasm_bg.wasm
+-rw-r--r-- 1 runner docker    567 Jun 24 00:21 j_interpreter_wasm_bg.wasm.d.ts
+-rw-r--r-- 1 runner docker    298 Jun 24 00:21 package.json
+=== WASM File Information ===
+File: static/pkg/j_interpreter_wasm_bg.wasm
+static/pkg/j_interpreter_wasm_bg.wasm: WebAssembly (wasm) binary module version 0x1 (MVP)
+Size: 421901 bytes
+=== JavaScript Binding Verification ===
+=== Contents of static/pkg/j_interpreter_wasm.js (first 30 lines) ===
+let wasm;
+
+const cachedTextDecoder = (typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { ignoreBOM: true, fatal: true }) : { decode: () => { throw Error('TextDecoder not available') } } );
+
+if (typeof TextDecoder !== 'undefined') { cachedTextDecoder.decode(); };
+
+let cachedUint8ArrayMemory0 = null;
+
+function getUint8ArrayMemory0() {
+    if (cachedUint8ArrayMemory0 === null || cachedUint8ArrayMemory0.byteLength === 0) {
+        cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
+    }
+    return cachedUint8ArrayMemory0;
+}
+
+function getStringFromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
+}
+
+function logError(f, args) {
+    try {
+        return f.apply(this, args);
+    } catch (e) {
+        let error = (function () {
+            try {
+                return e instanceof Error ? `${e.message}\n\nStack:\n${e.stack}` : e.toString();
+            } catch(_) {
+                return "<failed to stringify thrown value>";
+            }
+=== TypeScript Definitions ===
+==> static/pkg/j_interpreter_wasm.d.ts <==
+/* tslint:disable */
+/* eslint-disable */
+export function evaluate_j_expression(expression: string): string;
+export function handle_j_eval_request(request_body: string): string;
+
+export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
+
+export interface InitOutput {
+  readonly memory: WebAssembly.Memory;
+  readonly evaluate_j_expression: (a: number, b: number) => [number, number];
+  readonly handle_j_eval_request: (a: number, b: number) => [number, number];
+  readonly __wbindgen_free: (a: number, b: number, c: number) => void;
+  readonly __wbindgen_malloc: (a: number, b: number) => number;
+  readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+  readonly __wbindgen_export_3: WebAssembly.Table;
+  readonly __wbindgen_start: () => void;
+}
+
+export type SyncInitInput = BufferSource | WebAssembly.Module;
+/**
+
+==> static/pkg/j_interpreter_wasm_bg.wasm.d.ts <==
+/* tslint:disable */
+/* eslint-disable */
+export const memory: WebAssembly.Memory;
+export const evaluate_j_expression: (a: number, b: number) => [number, number];
+export const handle_j_eval_request: (a: number, b: number) => [number, number];
+export const __wbindgen_free: (a: number, b: number, c: number) => void;
+export const __wbindgen_malloc: (a: number, b: number) => number;
+export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+export const __wbindgen_export_3: WebAssembly.Table;
+export const __wbindgen_start: () => void;
+=== Package.json Contents ===
+{
+  "name": "simple_server",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "j_interpreter_wasm_bg.wasm",
+    "j_interpreter_wasm.js",
+    "j_interpreter_wasm.d.ts"
+  ],
+  "main": "j_interpreter_wasm.js",
+  "types": "j_interpreter_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
