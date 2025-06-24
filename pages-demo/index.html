@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J Language Interpreter | Live WebAssembly Demo</title>
+    <meta name="description" content="Interactive J language interpreter running entirely in your browser with WebAssembly">
+    <meta name="keywords" content="J language, array programming, WebAssembly, WASM, interpreter, APL">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">J Language Interpreter</h1>
+                <p class="subtitle">Interactive Array Programming with WebAssembly</p>
+                <div class="badges">
+                    <span class="badge wasm">WebAssembly</span>
+                    <span class="badge client">Client-Side</span>
+                    <span class="badge array">Array Programming</span>
+                </div>
+            </div>
+        </header>
+        
+        <main class="main-content">
+            <div class="interpreter-section">
+                <div class="interpreter-panel">
+                    <div class="input-section">
+                        <label for="j-input" class="input-label">
+                            <span class="label-text">Enter J Expression:</span>
+                            <span class="label-hint">Press Enter or click Evaluate</span>
+                        </label>
+                        <div class="input-group">
+                            <input 
+                                type="text" 
+                                id="j-input" 
+                                class="j-input"
+                                placeholder="~3+~3"
+                                autocomplete="off"
+                                autocapitalize="off"
+                                spellcheck="false"
+                            >
+                            <button id="evaluate-btn" class="evaluate-btn" disabled>
+                                <span class="btn-text">Evaluate</span>
+                                <span class="btn-shortcut">⏎</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="output-section">
+                        <div class="output-header">
+                            <label class="output-label">Result:</label>
+                            <div class="output-stats">
+                                <span id="eval-time" class="eval-time"></span>
+                            </div>
+                        </div>
+                        <div id="result-display" class="result-display" aria-live="polite">
+                            <div class="result-placeholder">
+                                Ready for J expressions...
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="status-section">
+                        <div class="status-indicator">
+                            <div id="wasm-status" class="wasm-status loading">
+                                <div class="status-icon"></div>
+                                <span class="status-text">Initializing WebAssembly...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="history-panel">
+                    <div class="history-header">
+                        <h3>Expression History</h3>
+                        <button id="clear-history" class="clear-btn">Clear</button>
+                    </div>
+                    <div id="history-list" class="history-list">
+                        <div class="history-empty">No expressions yet</div>
+                    </div>
+                </div>
+            </div>
+            
+            <aside class="sidebar">
+                <div class="examples-panel">
+                    <h3 class="panel-title">Quick Examples</h3>
+                    <div class="example-grid">
+                        <button class="example-btn" data-expr="~3+~3" data-desc="Negate and add">
+                            <code>~3+~3</code>
+                            <span class="example-desc">Negate and add</span>
+                        </button>
+                        <button class="example-btn" data-expr="2 3#~6" data-desc="Reshape array">
+                            <code>2 3#~6</code>
+                            <span class="example-desc">Reshape to 2×3 matrix</span>
+                        </button>
+                        <button class="example-btn" data-expr="1+2+3+4" data-desc="Chain addition">
+                            <code>1+2+3+4</code>
+                            <span class="example-desc">Chain addition</span>
+                        </button>
+                        <button class="example-btn" data-expr="4{~7" data-desc="Index operation">
+                            <code>4{~7</code>
+                            <span class="example-desc">Index into array</span>
+                        </button>
+                        <button class="example-btn" data-expr="(1+2)*3" data-desc="Parentheses">
+                            <code>(1+2)*3</code>
+                            <span class="example-desc">Grouped expression</span>
+                        </button>
+                        <button class="example-btn" data-expr="1,2,3,4" data-desc="Concatenation">
+                            <code>1,2,3,4</code>
+                            <span class="example-desc">Array concatenation</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="reference-panel">
+                    <h3 class="panel-title">Operator Reference</h3>
+                    <div class="reference-grid">
+                        <div class="reference-group">
+                            <h4>Monadic (Prefix)</h4>
+                            <div class="operator-list">
+                                <div class="operator-item">
+                                    <code>~x</code>
+                                    <span>Negate</span>
+                                </div>
+                                <div class="operator-item">
+                                    <code>#x</code>
+                                    <span>Shape/Tally</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="reference-group">
+                            <h4>Dyadic (Infix)</h4>
+                            <div class="operator-list">
+                                <div class="operator-item">
+                                    <code>x+y</code>
+                                    <span>Addition</span>
+                                </div>
+                                <div class="operator-item">
+                                    <code>x-y</code>
+                                    <span>Subtraction</span>
+                                </div>
+                                <div class="operator-item">
+                                    <code>x*y</code>
+                                    <span>Multiplication</span>
+                                </div>
+                                <div class="operator-item">
+                                    <code>x%y</code>
+                                    <span>Division</span>
+                                </div>
+                                <div class="operator-item">
+                                    <code>x#y</code>
+                                    <span>Reshape</span>
+                                </div>
+                                <div class="operator-item">
+                                    <code>x{y</code>
+                                    <span>Index</span>
+                                </div>
+                                <div class="operator-item">
+                                    <code>x,y</code>
+                                    <span>Concatenate</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="about-panel">
+                    <h3 class="panel-title">About This Demo</h3>
+                    <div class="about-content">
+                        <p>This J language interpreter runs entirely in your browser using WebAssembly technology. No server communication is required - all computation happens client-side.</p>
+                        
+                        <div class="tech-stack">
+                            <h4>Technology Stack</h4>
+                            <ul>
+                                <li><strong>Backend:</strong> Rust compiled to WebAssembly</li>
+                                <li><strong>Frontend:</strong> Vanilla JavaScript ES6 modules</li>
+                                <li><strong>Deployment:</strong> GitHub Pages with Actions CI/CD</li>
+                                <li><strong>Performance:</strong> Native-speed array operations</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="features">
+                            <h4>Key Features</h4>
+                            <ul>
+                                <li>Full J language operator support</li>
+                                <li>Multi-dimensional array processing</li>
+                                <li>Real-time expression evaluation</li>
+                                <li>Expression history and examples</li>
+                                <li>Mobile-responsive design</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="source-info">
+                            <p>
+                                <a href="https://github.com/your-username/your-repo" target="_blank" rel="noopener">
+                                    View Source Code on GitHub
+                                </a>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+        
+        <footer class="footer">
+            <div class="footer-content">
+                <p>&copy; 2025 J Language WebAssembly Demo. 
+                   Built with <a href="https://www.rust-lang.org/" target="_blank">Rust</a> and 
+                   <a href="https://webassembly.org/" target="_blank">WebAssembly</a>.
+                </p>
+                <p>Deployed automatically via GitHub Actions to GitHub Pages.</p>
+            </div>
+        </footer>
+    </div>
+    
+    <!-- Performance monitoring -->
+    <script>
+        if ('performance' in window) {
+            window.addEventListener('load', () => {
+                const perfData = performance.getEntriesByType('navigation')[0];
+                console.log('Page load time:', perfData.loadEventEnd - perfData.loadEventStart + 'ms');
+            });
+        }
+    </script>
+    
+    <!-- Load application modules -->
+    <script type="module" src="js/wasm-loader.js"></script>
+    <script type="module" src="js/j-interpreter.js"></script>
+</body>
+</html>

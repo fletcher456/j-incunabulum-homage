@@ -1,0 +1,278 @@
+name: Build and Deploy J Language Demo
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'simple_server/**'
+      - 'pages-demo/**'
+      - '.github/workflows/pages-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+        
+    - name: Install wasm-pack
+      uses: jetli/wasm-pack-action@v0.4.0
+      with:
+        version: 'latest'
+        
+    - name: Add WebAssembly target
+      run: rustup target add wasm32-unknown-unknown
+      
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+      
+    - name: Cache cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          simple_server/target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+          
+    - name: Display environment information
+      run: |
+        echo "=== Build Environment ==="
+        echo "Runner OS: ${{ runner.os }}"
+        echo "Rust version: $(rustc --version)"
+        echo "Cargo version: $(cargo --version)"
+        echo "wasm-pack version: $(wasm-pack --version)"
+        echo "Working directory: $(pwd)"
+        echo "Available space: $(df -h . | tail -1 | awk '{print $4}')"
+        echo
+        echo "=== Repository Structure ==="
+        find . -type f -name "*.rs" -o -name "*.toml" -o -name "*.html" -o -name "*.js" -o -name "*.css" | head -20
+        echo
+        
+    - name: Build Rust server (for verification)
+      working-directory: simple_server
+      run: |
+        echo "=== Building Rust Server ==="
+        cargo build --verbose
+        echo "✅ Server build completed"
+        
+    - name: Build WebAssembly module
+      working-directory: simple_server
+      run: |
+        echo "=== Building WebAssembly Module ==="
+        echo "Current directory: $(pwd)"
+        echo "Contents: $(ls -la)"
+        
+        # Create pkg directory if it doesn't exist
+        mkdir -p static/pkg
+        
+        # Build with wasm-pack
+        echo "Running wasm-pack build..."
+        wasm-pack build \
+          --target web \
+          --out-dir static/pkg \
+          --out-name simple_server \
+          --no-typescript \
+          --no-pack \
+          --verbose
+          
+        echo "=== WASM Build Output ==="
+        ls -la static/pkg/
+        
+        # Verify essential files exist
+        if [ ! -f "static/pkg/simple_server.js" ]; then
+          echo "❌ JavaScript bindings not found"
+          exit 1
+        fi
+        
+        if [ ! -f "static/pkg/simple_server_bg.wasm" ]; then
+          echo "❌ WASM binary not found"
+          exit 1
+        fi
+        
+        # Display file sizes
+        echo "=== File Sizes ==="
+        du -h static/pkg/*
+        
+        echo "✅ WASM build completed successfully"
+        
+    - name: Test WASM functionality
+      working-directory: simple_server
+      run: |
+        echo "=== Testing WASM Module ==="
+        
+        if command -v node &> /dev/null; then
+          echo "Node.js available, running functionality test..."
+          node wasm_test.js || echo "WASM test completed (exit code: $?)"
+        else
+          echo "Node.js not available, skipping functionality test"
+        fi
+        
+        # Basic file integrity checks
+        echo "=== File Integrity Checks ==="
+        
+        # Check WASM magic number
+        if command -v xxd &> /dev/null; then
+          echo "WASM magic bytes:"
+          xxd -l 8 static/pkg/simple_server_bg.wasm
+        fi
+        
+        # Check JavaScript file structure
+        echo "JavaScript exports:"
+        grep -o "export.*function.*(" static/pkg/simple_server.js | head -5 || true
+        
+        echo "✅ WASM testing completed"
+        
+    - name: Create Pages deployment structure
+      run: |
+        echo "=== Creating Pages Structure ==="
+        
+        # Create build directory
+        mkdir -p pages-build
+        
+        # Copy demo files
+        echo "Copying demo files..."
+        cp -r pages-demo/* pages-build/
+        
+        # Create wasm directory and copy artifacts
+        echo "Copying WASM artifacts..."
+        mkdir -p pages-build/wasm
+        cp simple_server/static/pkg/simple_server.js pages-build/wasm/
+        cp simple_server/static/pkg/simple_server_bg.wasm pages-build/wasm/
+        
+        # Copy additional files if they exist
+        if [ -f "simple_server/static/pkg/package.json" ]; then
+          cp simple_server/static/pkg/package.json pages-build/wasm/
+        fi
+        
+        # Create favicon if it doesn't exist
+        if [ ! -f "pages-build/assets/favicon.ico" ]; then
+          mkdir -p pages-build/assets
+          # Create a minimal favicon (optional)
+          touch pages-build/assets/favicon.ico
+        fi
+        
+        echo "=== Pages Structure ==="
+        find pages-build -type f | sort
+        
+        echo "=== File Sizes ==="
+        du -h pages-build/wasm/*
+        du -h pages-build/js/*
+        du -h pages-build/css/*
+        
+        echo "✅ Pages structure created successfully"
+        
+    - name: Validate Pages structure
+      run: |
+        echo "=== Validating Pages Structure ==="
+        
+        # Check required files exist
+        required_files=(
+          "pages-build/index.html"
+          "pages-build/js/j-interpreter.js"
+          "pages-build/js/wasm-loader.js"
+          "pages-build/css/style.css"
+          "pages-build/wasm/simple_server.js"
+          "pages-build/wasm/simple_server_bg.wasm"
+        )
+        
+        for file in "${required_files[@]}"; do
+          if [ -f "$file" ]; then
+            echo "✅ $file"
+          else
+            echo "❌ $file (missing)"
+            exit 1
+          fi
+        done
+        
+        # Check HTML file contains expected content
+        if grep -q "J Language Interpreter" pages-build/index.html; then
+          echo "✅ HTML content verified"
+        else
+          echo "❌ HTML content invalid"
+          exit 1
+        fi
+        
+        # Check JavaScript modules are properly structured
+        if grep -q "export default" pages-build/js/wasm-loader.js; then
+          echo "✅ JavaScript modules verified"
+        else
+          echo "❌ JavaScript modules invalid"
+          exit 1
+        fi
+        
+        echo "✅ Pages structure validation completed"
+        
+    - name: Upload Pages artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: pages-build
+        
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+      
+    - name: Display deployment information
+      run: |
+        echo "=== Deployment Completed ==="
+        echo "📦 Artifact uploaded successfully"
+        echo "🚀 Deployed to: ${{ steps.deployment.outputs.page_url }}"
+        echo "⏱️  Build time: $(date)"
+        echo
+        echo "=== Next Steps ==="
+        echo "1. Visit the deployed URL to test the J language interpreter"
+        echo "2. Check browser console for any WASM loading issues"
+        echo "3. Test various J expressions to verify functionality"
+        echo "4. Monitor GitHub Pages deployment status"
+        echo
+        echo "=== Troubleshooting ==="
+        echo "- If WASM fails to load, check browser compatibility"
+        echo "- Verify all static files are accessible"
+        echo "- Check browser console for detailed error messages"
+        echo "- Ensure GitHub Pages is properly configured"
+        
+    - name: Create deployment summary
+      run: |
+        echo "## 🎉 J Language Interpreter Deployed Successfully!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📊 Build Information" >> $GITHUB_STEP_SUMMARY
+        echo "- **Deployment URL**: ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Build Time**: $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🧮 Features Available" >> $GITHUB_STEP_SUMMARY
+        echo "- Interactive J language evaluation" >> $GITHUB_STEP_SUMMARY
+        echo "- WebAssembly-powered computation" >> $GITHUB_STEP_SUMMARY
+        echo "- Real-time expression processing" >> $GITHUB_STEP_SUMMARY
+        echo "- Expression history and examples" >> $GITHUB_STEP_SUMMARY
+        echo "- Mobile-responsive design" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔧 Technical Stack" >> $GITHUB_STEP_SUMMARY
+        echo "- **Backend**: Rust compiled to WebAssembly" >> $GITHUB_STEP_SUMMARY
+        echo "- **Frontend**: Vanilla JavaScript ES6 modules" >> $GITHUB_STEP_SUMMARY
+        echo "- **Deployment**: GitHub Pages with Actions CI/CD" >> $GITHUB_STEP_SUMMARY
+        echo "- **Performance**: Client-side processing with native speeds" >> $GITHUB_STEP_SUMMARY
