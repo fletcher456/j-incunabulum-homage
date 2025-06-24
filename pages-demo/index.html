@@ -200,20 +200,7 @@
                 scrollToBottom();
             } else {
                 // Pure server fallback for GitHub Pages
-                try {
-                    const response = await fetch('/evaluate', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ expression: expression, parser: 'custom' })
-                    });
-                    const data = await response.json();
-                    const result = data.result || data.error || 'No result';
-                    const resultClass = result.startsWith('Error') ? 'error' : 'output';
-                    addMessage('  ' + result, resultClass);
-                } catch (error) {
-                    console.error('Server error:', error);
-                    addMessage('  Error: Server communication failed', 'error');
-                }
+                addMessage('  Error: WASM module failed to load and no server available', 'error');
                 scrollToBottom();
             }
         }

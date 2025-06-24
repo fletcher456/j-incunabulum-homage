@@ -186,6 +186,18 @@ jobs:
           "wasm-artifacts/simple_server_bg.wasm"
         )
         
+        echo "Checking WASM artifact contents..."
+        if [ -f "wasm-artifacts/simple_server.js" ]; then
+          echo "JavaScript bindings size: $(stat -c%s wasm-artifacts/simple_server.js) bytes"
+          echo "Checking for evaluate_j_expression function..."
+          if grep -q "evaluate_j_expression" wasm-artifacts/simple_server.js; then
+            echo "✅ evaluate_j_expression function found in bindings"
+          else
+            echo "❌ evaluate_j_expression function NOT found in bindings"
+            head -20 wasm-artifacts/simple_server.js
+          fi
+        fi
+        
         for file in "${required_files[@]}"; do
           if [ -f "$file" ]; then
             echo "✅ $file ($(stat -c%s "$file") bytes)"
@@ -209,8 +221,18 @@ jobs:
         # Create wasm directory and copy artifacts
         echo "Copying WASM artifacts..."
         mkdir -p pages-build/wasm
+        
+        # Copy all WASM files
+        echo "Copying JavaScript bindings..."
         cp wasm-artifacts/simple_server.js pages-build/wasm/
+        echo "Copying WASM binary..."
         cp wasm-artifacts/simple_server_bg.wasm pages-build/wasm/
+        
+        # Copy additional files if they exist
+        if [ -f "wasm-artifacts/simple_server_bg.wasm.d.ts" ]; then
+          echo "Copying TypeScript definitions..."
+          cp wasm-artifacts/simple_server_bg.wasm.d.ts pages-build/wasm/
+        fi
         
         # Copy additional files if they exist
         if [ -f "wasm-artifacts/package.json" ]; then

@@ -3,26 +3,43 @@ async function initializeWasmEngine() {
     try {
         console.log('Initializing WASM for GitHub Pages...');
         
-        // Import WASM module from GitHub Pages path
-        const wasm = await import('./wasm/simple_server.js');
-        await wasm.default();
+        // Check if we're on GitHub Pages
+        const isGitHubPages = location.hostname.includes('github.io');
+        const isReplit = location.hostname.includes('replit');
         
-        // Create adapter and make available globally
-        wasmAdapter = new WasmAdapter(wasm);
-        
-        // Create compatible interface for existing code
-        window.wasmLoader = {
-            isReady: () => true,
-            evaluateExpression: (expr) => wasmAdapter.evaluateExpression(expr)
-        };
-        
-        console.log('WASM engine ready for GitHub Pages');
-        
-    } catch (error) {
-        console.log('WASM failed, using server fallback:', error.message);
-        
-        // For testing in Replit, create a working server adapter
-        if (location.hostname === 'localhost' || location.hostname.includes('replit')) {
+        if (isGitHubPages) {
+            // GitHub Pages WASM loading
+            console.log('Loading WASM module from GitHub Pages...');
+            const wasmModule = await import('./wasm/simple_server.js');
+            
+            // Initialize WASM with explicit path
+            await wasmModule.default('./wasm/simple_server_bg.wasm');
+            
+            // Verify the function exists
+            if (typeof wasmModule.evaluate_j_expression !== 'function') {
+                throw new Error('evaluate_j_expression function not found in WASM module');
+            }
+            
+            console.log('WASM module loaded successfully');
+            console.log('Available functions:', Object.keys(wasmModule).filter(key => typeof wasmModule[key] === 'function'));
+            
+            // Create compatible interface
+            window.wasmLoader = {
+                isReady: () => true,
+                evaluateExpression: (expr) => {
+                    try {
+                        return wasmModule.evaluate_j_expression(expr);
+                    } catch (error) {
+                        return 'Error: ' + error.message;
+                    }
+                }
+            };
+            
+            console.log('WASM engine ready for GitHub Pages');
+            
+        } else if (isReplit) {
+            // Replit server fallback
+            console.log('Using Replit server fallback mode');
             window.wasmLoader = {
                 isReady: () => true,
                 evaluateExpression: async (expr) => {
@@ -40,12 +57,18 @@ async function initializeWasmEngine() {
                 }
             };
         } else {
-            // Pure fallback mode for GitHub Pages without WASM
-            window.wasmLoader = {
-                isReady: () => false,
-                evaluateExpression: () => { throw new Error('WASM not available'); }
-            };
+            throw new Error('Unsupported environment');
         }
+        
+    } catch (error) {
+        console.error('WASM initialization failed:', error);
+        console.error('Error details:', error.stack);
+        
+        // Fallback mode
+        window.wasmLoader = {
+            isReady: () => false,
+            evaluateExpression: () => 'Error: WASM module failed to load'
+        };
     }
 }
 
