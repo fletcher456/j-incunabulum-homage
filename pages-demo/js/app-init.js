@@ -10,10 +10,25 @@ async function initializeWasmEngine() {
         if (isGitHubPages) {
             // GitHub Pages WASM loading
             console.log('Loading WASM module from GitHub Pages...');
-            const wasmModule = await import('./wasm/simple_server.js');
+            console.log('Current script location:', window.location.pathname);
+            const wasmModule = await import('../wasm/simple_server.js');
             
-            // Initialize WASM with explicit path
-            await wasmModule.default('./wasm/simple_server_bg.wasm');
+            // Initialize WASM with multiple patterns
+            console.log('Initializing WASM module...');
+            try {
+                await wasmModule.default();
+                console.log('WASM initialized with default() - no parameters');
+            } catch (e1) {
+                console.log('Default init failed, trying with explicit path:', e1.message);
+                try {
+                    await wasmModule.default('../wasm/simple_server_bg.wasm');
+                    console.log('WASM initialized with explicit relative path');
+                } catch (e2) {
+                    console.log('Relative path failed, trying absolute path:', e2.message);
+                    await wasmModule.default('/wasm/simple_server_bg.wasm');
+                    console.log('WASM initialized with absolute path');
+                }
+            }
             
             // Verify the function exists
             if (typeof wasmModule.evaluate_j_expression !== 'function') {
@@ -22,6 +37,8 @@ async function initializeWasmEngine() {
             
             console.log('WASM module loaded successfully');
             console.log('Available functions:', Object.keys(wasmModule).filter(key => typeof wasmModule[key] === 'function'));
+            console.log('Module keys:', Object.keys(wasmModule));
+            console.log('evaluate_j_expression type:', typeof wasmModule.evaluate_j_expression);
             
             // Create compatible interface
             window.wasmLoader = {
