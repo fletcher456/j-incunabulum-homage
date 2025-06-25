@@ -30,8 +30,8 @@ I had a lot of fun doing this, and I hope you'll take in my tale with caution: t
 
 When I started writing this readme I thought that Replit let people who weren't logged in users see the project. That's not the case, so I switched to GitHub Pages and immediately had to jump into wasm and a bunch of configuration stuff... or rather, the AI did.
 
-It works now, after a bunch of stuff gone wrong. I had it rip out LALRPOP and serde to try and get wasm builds to complete on Replit itself, but that didn't happen, so the wasm builds only ever happened on GitHub. It might have been possible to leave in LALRPOP and still compile on GitHub, but I found out that Replit does not trust its agents to directly run git commands, so I would have had to use a keyboard and the command line to try to get LALRPOP building in wasm on GitHub.
+It works now, after a bunch of stuff gone wrong. I had it rip out LALRPOP and serde to try and get wasm builds to complete on Replit itself, but that didn't happen, so the wasm builds only ever happened on GitHub. It might have been possible to leave in LALRPOP and still compile on GitHub, but I found out that Replit does not trust its agents to directly run git commands, so I would have had to use a keyboard and the command line to try to get LALRPOP building in wasm on GitHub. This was a definite L for on-phone development.
 
-I wouldn't trust AI to directly run git commands either. I barely trust myself to do that!
+> I wouldn't trust AI to directly run git commands either. I barely trust myself to do that!
 
 Also, after a particularly egregious unasked-for commit, I made the AI write a self-criticism. It's in there among the giant mass of self-soothing green checkmarks and affirmations, if you're looking for a chuckle.
