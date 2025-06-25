@@ -34,7 +34,13 @@ struct AppState {
 
 fn main() {
     // Create a server listening on port 5000
-    let server = Server::http("0.0.0.0:5000").unwrap();
+    let server = match Server::http("0.0.0.0:5000") {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to start server on 0.0.0.0:5000: {}", e);
+            std::process::exit(1);
+        }
+    };
     println!("Server running at http://0.0.0.0:5000");
     println!("Visit http://0.0.0.0:5000 in your browser");
 
@@ -72,8 +78,11 @@ fn main() {
                     
                     if expression.trim().is_empty() {
                         let error_response = r#"{"error": "No expression provided"}"#;
-                        let header = Header::from_bytes("Content-Type", "application/json").unwrap();
-                        Response::from_string(error_response).with_header(header)
+                        let response = match Header::from_bytes("Content-Type", "application/json") {
+                            Ok(header) => Response::from_string(error_response).with_header(header),
+                            Err(_) => Response::from_string(error_response)
+                        };
+                        response
                     } else {
                         println!("Evaluating: {} (using custom parser)", expression);
                         
@@ -141,13 +150,17 @@ fn main() {
                         formatted_result.replace('"', "\\\"").replace('\n', "\\n")
                     );
                     
-                    let header = Header::from_bytes("Content-Type", "application/json").unwrap();
-                    Response::from_string(json_response).with_header(header)
+                    match Header::from_bytes("Content-Type", "application/json") {
+                        Ok(header) => Response::from_string(json_response).with_header(header),
+                        Err(_) => Response::from_string(json_response)
+                    }
                     }
                 } else {
                     let error_response = "{\"result\": \"Error: Could not read request body\"}";
-                    let header = Header::from_bytes("Content-Type", "application/json").unwrap();
-                    Response::from_string(error_response).with_header(header).with_status_code(400)
+                    match Header::from_bytes("Content-Type", "application/json") {
+                        Ok(header) => Response::from_string(error_response).with_header(header).with_status_code(400),
+                        Err(_) => Response::from_string(error_response).with_status_code(400)
+                    }
                 }
             },
             // Original message submission (kept for backward compatibility)
@@ -180,8 +193,10 @@ fn main() {
                 }
                 
                 // Redirect to the J REPL page
-                let header = Header::from_bytes("Location", "/").unwrap();
-                Response::from_string("").with_status_code(303).with_header(header)
+                match Header::from_bytes("Location", "/") {
+                    Ok(header) => Response::from_string("").with_status_code(303).with_header(header),
+                    Err(_) => Response::from_string("Redirect failed").with_status_code(500)
+                }
             },
             (Method::Get, "/") => {
                 // Default to J REPL interface
@@ -383,7 +398,10 @@ fn serve_static_file(url: &str) -> Response<std::io::Cursor<Vec<u8>>> {
                         _ => "application/octet-stream",
                     };
 
-                    let header = Header::from_bytes("Content-Type", content_type).unwrap();
+                    let header = match Header::from_bytes("Content-Type", content_type) {
+                        Ok(h) => h,
+                        Err(_) => return Response::from_string("File not found").with_status_code(404)
+                    };
                     Response::from_data(contents).with_header(header)
                 } else {
                     Response::from_string("Error reading file").with_status_code(500)
