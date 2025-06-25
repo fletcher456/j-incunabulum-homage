@@ -298,3 +298,25 @@ if (!wasmModule.evaluate_j_expression) {
 **Expected Result**: GitHub Pages deployment should now successfully load WASM module and evaluate J expressions client-side.
 
 **Next Steps**: Deploy to GitHub Pages and monitor console logs for successful WASM initialization.
+
+---
+
+## Update: Minimal Stub Analysis Strategy
+
+**Issue**: Previous path resolution fix still resulted in "Importing a module script failed" error
+**Root Cause**: Cannot examine actual WASM artifacts limiting effective debugging
+**New Approach**: Create minimal stub interpreter returning "foo" for direct analysis
+
+**Actions Taken**:
+1. ✅ Marked complex J interpreter as temporarily unused in lib.rs
+2. ✅ Created minimal stub: `evaluate_j_expression()` returns "foo (input was: X)"
+3. ✅ Built separate GitHub Actions workflow for stub WASM generation
+4. ✅ Configured workflow to output complete JavaScript bindings for copy/paste analysis
+
+**Expected Analysis Benefits**:
+- Direct examination of wasm-pack generated JavaScript bindings
+- Understanding exact initialization patterns and export structure  
+- Verification of proper wasm-bindgen integration
+- Clear identification of path resolution and loading issues
+
+**Workflow**: `.github/workflows/wasm-stub-build.yml` ready for manual trigger

@@ -1,0 +1,73 @@
+name: WASM Stub Build
+
+on:
+  workflow_dispatch:  # Manual trigger for analysis
+  push:
+    paths:
+      - 'simple_server/src/lib.rs'
+      - '.github/workflows/wasm-stub-build.yml'
+
+jobs:
+  build-wasm-stub:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: wasm32-unknown-unknown
+        override: true
+        
+    - name: Install wasm-pack
+      run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        
+    - name: Build WASM stub
+      working-directory: simple_server
+      run: |
+        echo "=== Building Minimal WASM Stub ==="
+        echo "This stub returns 'foo' for all inputs - for analysis only"
+        
+        # Build with wasm-pack
+        wasm-pack build \
+          --target web \
+          --out-dir wasm_stub_analysis \
+          --out-name stub_interpreter \
+          --no-typescript \
+          --no-pack \
+          --verbose
+          
+    - name: Display build output for copy/paste
+      working-directory: simple_server
+      run: |
+        echo "=== WASM STUB BUILD COMPLETE ==="
+        echo ""
+        echo "Generated files for analysis:"
+        ls -la wasm_stub_analysis/
+        echo ""
+        echo "=== JavaScript Bindings (stub_interpreter.js) ==="
+        echo "Copy this entire content:"
+        echo "--- BEGIN stub_interpreter.js ---"
+        cat wasm_stub_analysis/stub_interpreter.js
+        echo "--- END stub_interpreter.js ---"
+        echo ""
+        echo "=== WASM Binary Info ==="
+        echo "File: stub_interpreter_bg.wasm"
+        echo "Size: $(ls -lh wasm_stub_analysis/stub_interpreter_bg.wasm | awk '{print $5}')"
+        echo "Magic bytes:"
+        hexdump -C wasm_stub_analysis/stub_interpreter_bg.wasm | head -1
+        echo ""
+        echo "=== Usage Instructions ==="
+        echo "1. Copy the JavaScript bindings above"
+        echo "2. Download stub_interpreter_bg.wasm from artifacts"
+        echo "3. Paste both into the project for analysis"
+        
+    - name: Upload WASM artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: wasm-stub-analysis
+        path: simple_server/wasm_stub_analysis/
+        retention-days: 1

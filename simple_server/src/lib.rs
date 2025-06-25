@@ -1,20 +1,32 @@
 use wasm_bindgen::prelude::*;
 
+// TEMPORARILY UNUSED - Complex J interpreter
 // Module declarations
-pub mod tokenizer;
-pub mod semantic_analyzer;
-pub mod evaluator;
-pub mod j_array;
-pub mod parser;
-pub mod test_suite;
-pub mod visualizer;
-pub mod custom_parser;
+// pub mod tokenizer;
+// pub mod semantic_analyzer;
+// pub mod evaluator;
+// pub mod j_array;
+// pub mod parser;
+// pub mod test_suite;
+// pub mod visualizer;
+// pub mod custom_parser;
 
-use tokenizer::JTokenizer;
-use custom_parser::CustomParser;
-use semantic_analyzer::JSemanticAnalyzer;
-use evaluator::JEvaluator;
+// use tokenizer::JTokenizer;
+// use custom_parser::CustomParser;
+// use semantic_analyzer::JSemanticAnalyzer;
+// use evaluator::JEvaluator;
 
+// STUB INTERPRETER - Always returns "foo" for WASM analysis
+#[wasm_bindgen]
+pub fn evaluate_j_expression(expression: &str) -> String {
+    console_error_panic_hook::set_once();
+    
+    // Simple stub that returns "foo" regardless of input
+    format!("foo (input was: {})", expression)
+}
+
+// TEMPORARILY UNUSED - Complex evaluation logic
+/*
 // Main WASM entry point for direct expression evaluation
 #[wasm_bindgen]
 pub fn evaluate_j_expression(expression: &str) -> String {
@@ -47,6 +59,7 @@ pub fn evaluate_j_expression(expression: &str) -> String {
     
     result
 }
+*/
 
 // JSON-compatible interface for web integration
 #[wasm_bindgen]
