@@ -13,10 +13,22 @@ async function initializeWasmEngine() {
             console.log('Current script location:', window.location.pathname);
             const wasmModule = await import('../wasm/simple_server.js');
             
-            // Initialize WASM (wasm-bindgen handles path resolution automatically)
+            // Initialize WASM with multiple patterns
             console.log('Initializing WASM module...');
-            await wasmModule.default();
-            console.log('WASM initialized successfully');
+            try {
+                await wasmModule.default();
+                console.log('WASM initialized with default() - no parameters');
+            } catch (e1) {
+                console.log('Default init failed, trying with explicit path:', e1.message);
+                try {
+                    await wasmModule.default('../wasm/simple_server_bg.wasm');
+                    console.log('WASM initialized with explicit relative path');
+                } catch (e2) {
+                    console.log('Relative path failed, trying absolute path:', e2.message);
+                    await wasmModule.default('/wasm/simple_server_bg.wasm');
+                    console.log('WASM initialized with absolute path');
+                }
+            }
             
             // Verify the function exists
             if (typeof wasmModule.evaluate_j_expression !== 'function') {
