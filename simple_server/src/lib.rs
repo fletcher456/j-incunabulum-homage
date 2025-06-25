@@ -1,12 +1,13 @@
 use wasm_bindgen::prelude::*;
 use crate::tokenizer::JTokenizer;
 use crate::custom_parser::CustomParser;
+use crate::semantic_analyzer::JSemanticAnalyzer;
 use crate::evaluator::JEvaluator;
 
 // TEMPORARILY UNUSED - Complex J interpreter
 // Module declarations
 pub mod tokenizer;
-// pub mod semantic_analyzer;
+pub mod semantic_analyzer;
 pub mod evaluator;
 pub mod j_array;
 pub mod parser;
@@ -24,18 +25,24 @@ pub mod custom_parser;
 pub fn evaluate_j_expression(expression: &str) -> String {
     console_error_panic_hook::set_once();
     
-    // Phase 1: Basic J expression evaluation
+    // Phase 1: Complete J expression evaluation pipeline
     let tokenizer = JTokenizer::new();
     let mut parser = CustomParser::new();
+    let semantic_analyzer = JSemanticAnalyzer::new();
     let evaluator = JEvaluator::new();
     
     match tokenizer.tokenize(expression) {
         Ok(tokens) => {
             match parser.parse(tokens) {
                 Ok(ast) => {
-                    match evaluator.evaluate(&ast) {
-                        Ok(result) => format!("{}", result),
-                        Err(e) => format!("Evaluation error: {}", e)
+                    match semantic_analyzer.analyze(ast) {
+                        Ok(resolved_ast) => {
+                            match evaluator.evaluate(&resolved_ast) {
+                                Ok(result) => format!("{}", result),
+                                Err(e) => format!("Evaluation error: {}", e)
+                            }
+                        },
+                        Err(e) => format!("Semantic error: {}", e)
                     }
                 },
                 Err(e) => format!("Parse error: {}", e)
