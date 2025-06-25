@@ -1,3 +1,7 @@
+# An homage to the J Incunabulum
+
+## Optimized for phone screens
+
 A live demo of this project is available:
 
 https://fletcher456.github.io/j-incunabulum-homage/
@@ -20,7 +24,9 @@ There is a huge amount of technical debt in this project. From an architectural 
 
 I had a lot of fun doing this, and I hope you'll take in my tale with caution: the thing works, which is amazing, but the code is in that terrifying superposition of incredibly cool and also ready to collapse if you look art out funny. I'm not happy with the process. 🤷
 
-Epilogue: when I started writing this readme I thought that Replit let people who weren't logged in users see the project. That's not the case, so I switched to GitHub Pages and immediately had to jump into wasm and a bunch of configuration stuff... or rather, the AI did.
+# Epilogue
+
+when I started writing this readme I thought that Replit let people who weren't logged in users see the project. That's not the case, so I switched to GitHub Pages and immediately had to jump into wasm and a bunch of configuration stuff... or rather, the AI did.
 
 It works now, after a bunch of stuff gone wrong. I had it rip out LALRPOP and serde to try and get wasm builds to complete on Replit itself, but that didn't happen, so the wasm builds only ever happened on GitHub. It might have been possible to leave in LALRPOP and still compile on GitHub, but i found out that Replit does not trust its agents to directly run git commands, so I would have had to use a keyboard and the command line to try to get LALRPOP building in wasm on GitHub.
 
