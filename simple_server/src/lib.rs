@@ -22,8 +22,8 @@ pub mod j_array;
 pub fn evaluate_j_expression(expression: &str) -> String {
     console_error_panic_hook::set_once();
     
-    // Simple stub that returns "foo" regardless of input
-    format!("foo (input was: {})", expression)
+    // Simple stub that returns "bar" regardless of input
+    format!("bar (input was: {})", expression)
 }
 
 // TEMPORARILY UNUSED - Complex evaluation logic
