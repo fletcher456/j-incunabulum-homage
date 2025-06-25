@@ -22,12 +22,16 @@ I feel like it would help to get the agent mind-mapping, showing the connections
 
 There is a huge amount of technical debt in this project. From an architectural point of view, the agent only ever added layers of stuff, never removed, never refined, never understood the project holistically. Well, maybe that's a bit harsh. It half-assed a bunch of refactorings in a way where you might think that it cleaned up after itself... but it smells like the cleanup was not done. I think there's a lot of dead code.
 
-I had a lot of fun doing this, and I hope you'll take in my tale with caution: the thing works, which is amazing, but the code is in that terrifying superposition of incredibly cool and also ready to collapse if you look art out funny. I'm not happy with the process. 🤷
+Analysis was far better than implementation. Asking for feasibility analyses seems to trigger extra truthfulness. It actually told me not to do certain things, which made me more confident when it claimed other things were feasible.
+
+I had a lot of fun doing this, and I hope you'll take in my tale with caution: the thing works, which is amazing, but the code is in that terrifying superposition of incredibly cool and also ready to collapse if you look at it funny. I'm not happy with the process. 🤷
 
 # Epilogue
 
-when I started writing this readme I thought that Replit let people who weren't logged in users see the project. That's not the case, so I switched to GitHub Pages and immediately had to jump into wasm and a bunch of configuration stuff... or rather, the AI did.
+When I started writing this readme I thought that Replit let people who weren't logged in users see the project. That's not the case, so I switched to GitHub Pages and immediately had to jump into wasm and a bunch of configuration stuff... or rather, the AI did.
 
-It works now, after a bunch of stuff gone wrong. I had it rip out LALRPOP and serde to try and get wasm builds to complete on Replit itself, but that didn't happen, so the wasm builds only ever happened on GitHub. It might have been possible to leave in LALRPOP and still compile on GitHub, but i found out that Replit does not trust its agents to directly run git commands, so I would have had to use a keyboard and the command line to try to get LALRPOP building in wasm on GitHub.
+It works now, after a bunch of stuff gone wrong. I had it rip out LALRPOP and serde to try and get wasm builds to complete on Replit itself, but that didn't happen, so the wasm builds only ever happened on GitHub. It might have been possible to leave in LALRPOP and still compile on GitHub, but I found out that Replit does not trust its agents to directly run git commands, so I would have had to use a keyboard and the command line to try to get LALRPOP building in wasm on GitHub.
 
-I wouldn't trust AI to directly run git commands either. I barely trust myself to do that 😁
+I wouldn't trust AI to directly run git commands either. I barely trust myself to do that!
+
+Also, after a particularly egregious unasked-for commit, I made the AI write a self-criticism. It's in there among the giant mass of self-soothing green checkmarks and affirmations, if you're looking for a chuckle.
