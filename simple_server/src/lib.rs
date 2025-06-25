@@ -1,11 +1,12 @@
 use wasm_bindgen::prelude::*;
+use crate::tokenizer::JTokenizer;
 
 // TEMPORARILY UNUSED - Complex J interpreter
 // Module declarations
-// pub mod tokenizer;
+pub mod tokenizer;
 // pub mod semantic_analyzer;
 // pub mod evaluator;
-// pub mod j_array;
+pub mod j_array;
 // pub mod parser;
 // pub mod test_suite;
 // pub mod visualizer;
